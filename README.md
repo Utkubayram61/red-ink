@@ -7,12 +7,13 @@ A 1v1 sword duel in steel and ink, played in the browser.
 Your blade swings where you drag. A parry needs two things at once: the right moment and the right angle.
 
 - Five weapons, each with its own art: Katana, Longsword, Zweihänder, Rapier and Twin Blades
-- Parries, perfect parries, feints, clashes, dodges, rolls, acrobatic flips and shuriken
+- Parries, perfect parries, feints, clashes, dodges, rolls, acrobatic flips (vault over your opponent) and shuriken
 - Five finishers
 - Six arenas, among them a storm bridge, a snow temple and a windswept rose garden
 - A dojo with 16 lessons
 - Play against the bot, or a friend online (peer to peer, just share the room link)
-- Character customization
+- Character customization: headwear, hair, beards, armor, colors
+- Full color or classic ink-and-red look (toggle in settings)
 
 ## Controls
 
