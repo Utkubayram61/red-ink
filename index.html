@@ -3355,7 +3355,7 @@ function resetFighter(f, x, z){
   f.yaw = Math.atan2(x, -(oz - z));
   f.fallForward = false; f.thrust = 0; f.biteT = -1e9; f.air = null; f.spinEnd = -1e9; f.breath = 100; f.breathT = 0;
   f.pose.lean = 0; f.pose.drop = 0; f.pose.off = 0; f.pose.tx = 0; f.pose.tz = 0; f.pvx = f.pvz = 0; f.brakeUntil = 0; f.trail.pts.length = 0; f.flash = 0; f.prevAlpha = null; resetCloth(f);
-  f.inj = { arm:0, leg:0, bleed:0, bleedUntil:0 }; f.bladeBlood = 0; f.blindUntil = 0; f.counterParry = false; f.art = null; f.artY = 0; f.sheathClick = 0; f.shuri = SHURI_N; f.throwReady = 0; f.throwDone = true;
+  f.inj = { arm:0, leg:0, bleed:0, bleedUntil:0 }; f.bladeBlood = 0; f.blindUntil = 0; f.counterParry = false; f.art = null; f.artY = 0; f.artVy = 0; f.sheathClick = 0; f.shuri = SHURI_N; f.throwReady = 0; f.throwDone = true;
   f.guardAngle = f.isPlayer ? .35 : 2.8; f.buf = null; f.qIdx = 0; f.qLock = 0; f.bindPush = 0;
 }
 
@@ -4308,7 +4308,7 @@ function startFinisher(a, b){
   if (type === 'behead') G.fin.alpha = (srnd() < .5 ? 0 : Math.PI) + srand(-.12, .12);
   if (type === 'cleave') G.fin.alpha = Math.PI/2 + srand(-.06, .06);
   hitstop = slowmo = 0; G.chain = 0; chainUI(); G.bind = null; Sfx.grind(false);
-  a.vel = { x:0, z:0 }; b.vel = { x:0, z:0 }; a.thrust = 0; a.sheath = 0; b.sheath = 0; a.artY = 0;
+  a.vel = { x:0, z:0 }; b.vel = { x:0, z:0 }; a.thrust = 0; a.sheath = 0; b.sheath = 0; a.artY = 0; b.artY = 0;
   a.air = null; b.air = null;
   b.yaw = Math.atan2(dir.x, dir.z);
   enter(a, 'fin'); enter(b, 'finVictim');
@@ -5028,6 +5028,8 @@ function injure(b, incoming, force){
 /* ================= per-fighter step ================= */
 function stepFighter(f, dt){
   const s = dt/1000;
+  // an art cut short in the air (parried, struck, locked): nothing holds the body up any more, it drops to the ground
+  if (f.artY > 0 && f.state !== 'art' && f.state !== 'fin'){ f.artVy = (f.artVy || 0) + 30*s; f.artY = Math.max(0, f.artY - f.artVy*s); if (f.artY === 0){ f.artVy = 0; dustFx(f.pos.x, f.pos.z, 4, .15); Sfx.thud(.3, panOf(f)); } }
   // after the edge bites, the rest of the swing drags through the body
   f.t += (f.state === 'active' && T - (f.biteT || -1e9) < 150) ? dt*.35 : dt;
   let mob = 0;
