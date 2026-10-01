@@ -533,7 +533,7 @@ function rollCurve(t){
 }
 const DASH_DUR=170, DASH_SPEED=12, DASH_CD=420;
 const CONTACT = .38;
-const SPEED=4.6, ARENA_R=10.2, HEAVY_HOLD=260, DRAG_MIN=18, STICK_R=36;
+const SPEED=4.6, ARENA_R=10.2, HEAVY_HOLD=260, DRAG_MIN=14, STICK_R=36, AIM_GAIN=1.5;
 const STATE_TR = { flip:'flip', throw:'shuriken', art:'art', artRecover:'after art', qte:'clash', fin:'final blow', finVictim:'final blow', idle:'ready', windup:'windup', active:'strike', recovery:'recovery', parry:'parry', parryRecover:'parry penalty', stagger:'staggered', hitstun:'hit', broken:'guard broken', dash:'dash', roll:'roll', feintRecover:'feint', dead:'down', deflect:'deflected', bind:'locked', crouch:'crouch', crouchUp:'rising', spin:'spin', spinRecover:'after spin', jump:'airborne', land:'landing', hold:'holding' };
 const VULN = new Set(['parryRecover','stagger','broken','feintRecover','recovery','spinRecover','land','artRecover']);
 
@@ -6411,7 +6411,7 @@ document.addEventListener('mousemove', e => {
   if (!inPlay()) return;
   if (you.state === 'bind'){ localMv += Math.min(80, Math.hypot(e.movementX || 0, e.movementY || 0)); return; }
   if (locked){
-    const dx = e.movementX*S.sens, dy = -e.movementY*S.sens;
+    const dx = e.movementX*S.sens*AIM_GAIN, dy = -e.movementY*S.sens*AIM_GAIN;   // a short flick is enough to bring the blade round
     if (input.lmb){ input.drag.x += dx; input.drag.y += dy; }
     else {
       const gain = you.state === 'parry' ? 1.8 : .9;   // an open parry turns faster, like a flick of the wrist
