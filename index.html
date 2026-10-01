@@ -422,7 +422,7 @@ details.ctrls[open] summary::before{content:"– "}
           <kbd>Mouse</kbd><span>Aim your guard</span>
           <kbd>Left click</kbd><span>Attack · drag while clicking to choose the side · click again on a hit: combo</span>
           <kbd>Hold left click</kbd><span>Heavy attack · keep holding until the ring turns gold: weapon art</span>
-          <kbd>Right click / Q</kbd><span>Parry · press late for a perfect parry · during your own windup: feint</span>
+          <kbd>Right click / Q</kbd><span>Parry · hold to keep your guard up and steer it with the mouse · tap just before the blow for a perfect parry · during your own windup: feint</span>
           <kbd>WASD</kbd><span>Move around your opponent</span>
           <kbd>Shift · Space</kbd><span>Dash · roll</span>
           <kbd>T</kbd><span>Acrobatic flip · toward them up close: vault over their head · click in the air to cut on landing</span>
@@ -3540,16 +3540,16 @@ function tempo(){ return clamp(1 - .06*G.chain, .66, 1); }
 /* counter-parry: staggered by a parry, you can still meet the riposte, in a tighter window that costs breath */
 function canCounter(f){
   const o = f.opp;
-  return (f.state === 'stagger' || f.state === 'deflect') && f.t >= 90 && o && o.atk && o.atk.riposte && !o.atk.resolved && (o.state === 'windup' || o.state === 'hold' || o.state === 'active') && f.breath >= 8;
+  return (f.state === 'stagger' || f.state === 'deflect') && f.t >= 60 && o && o.atk && o.atk.riposte && !o.atk.resolved && (o.state === 'windup' || o.state === 'hold' || o.state === 'active') && f.breath >= 6;
 }
 function tryParry(f, angle){
   const counter = !canAct(f) && canCounter(f);
   if (!canAct(f) && !counter) return false;
-  if (counter) spend(f, 8);
+  if (counter) spend(f, 6);
   f.counterParry = counter;
   f.parryAngle = wrap(angle); f.parryPressT = T;
   f.sweep = [{ t:T, a:f.parryAngle }];
-  enter(f, 'parry', counter ? S.window*Math.max(.45, .78 - .1*(G.counterN || 0)) : S.window);
+  enter(f, 'parry', counter ? S.window*Math.max(.55, .95 - .08*(G.counterN || 0)) : S.window);
   if (f.isPlayer) Sfx.tick();
   if (fight() && f.isPlayer) f.stats.parryTry++;
   return true;
@@ -3815,6 +3815,11 @@ function hit(a, b, over){
   injure(b, mirror(atk.angle), atk.heavy || atk.riposte || atk.skill || broke || caughtLow);
 }
 const DEFLECT = 210;
+/* The guard. A tap opens the classic parry window; holding the button keeps the guard up (to GUARD_MAX) and it follows the
+   mouse the whole time. Timing still matters: a blow met inside the classic window is a perfect parry, one met by a guard
+   that has been held longer is a plain parry that keeps the rally going. */
+const GUARD_MAX = 700, PERFECT_LATE = 70;
+function parryPerfect(b){ const into = T - b.parryPressT; return !!b.counterParry || (into >= S.window*.45 && into <= S.window + PERFECT_LATE); }
 function bumpChain(){
   G.chain = (T - G.lastClashT < 1600) ? G.chain + 1 : 1;
   G.lastClashT = T;
@@ -3825,7 +3830,7 @@ function parrySuccess(d, a, diff, tolDeg, swept){
   const atk = a.atk; atk.contact = true; atk.parried = true;
   const into = T - d.parryPressT;
   const counter = d.counterParry && atk.riposte; d.counterParry = false;
-  const perfect = counter || into >= S.window*.45;
+  const perfect = counter || parryPerfect(d);
   G.counterN = counter ? (G.counterN || 0) + 1 : 0;
   const chain = bumpChain();
   if (fight() && d.isPlayer){ d.stats.parryOk++; d.stats.timings.push(into); if (perfect) d.stats.perfect++; if (swept) d.stats.swept++; }
@@ -3835,7 +3840,7 @@ function parrySuccess(d, a, diff, tolDeg, swept){
   if (atk.heavy && !perfect){ startBind(a, d); return; }
   if (perfect){
     Sfx.voice(a, 'shock');
-    enter(a, 'stagger', (atk.heavy ? (a.w.hyper ? 460 : 700) : 520) + 200);
+    enter(a, 'stagger', (atk.heavy ? (a.w.hyper ? 400 : 560) : 410) + 150);
     d.riposteUntil = T + 820;
   } else {
     // normal parry: the attacker's blade is knocked aside but they recover in time to meet the counter
@@ -3851,7 +3856,7 @@ function parrySuccess(d, a, diff, tolDeg, swept){
   pendingClash = { a, d, perfect, chain };
   const kb = dirTo(d, a), kbs = perfect ? 3.4 : 2.2;
   a.vel.x += kb.x*kbs; a.vel.z += kb.z*kbs; d.vel.x -= kb.x*1; d.vel.z -= kb.z*1;
-  addPosture(a, perfect ? (atk.heavy ? 51 : 36) : 16);
+  addPosture(a, perfect ? (atk.heavy ? 40 : 26) : 10);
   hitstop = perfect ? 160 : 80 + Math.min(chain, 8)*6;
   shake(perfect ? .26 : .12 + Math.min(chain, 8)*.012);
   fovKick = Math.min(fovKick, perfect ? -5 : -1.5 - Math.min(chain, 8)*.3);
@@ -3863,7 +3868,8 @@ function parrySuccess(d, a, diff, tolDeg, swept){
       if (counter){ callout(G.counterN > 1 ? `Counter parry ×${G.counterN}` : 'Counter parry', 'gold', 'the tables turn · riposte is yours'); kanji('返し', { seal:'極' }); }
       else if (perfect){ callout('Perfect parry', 'gold', 'riposte now'); kanji('見切り', { seal:'極' }); }
       else if (chain < 2) callout('Parry', 'good', 'strike back');
-      setTiming(`<b class="ok">${perfect ? 'PERFECT' : 'PARRY ✓'}</b>${perfect ? 'pressed at the last moment' : 'press a little later for a perfect parry'}`);
+      const heldLong = !perfect && into > S.window + PERFECT_LATE;
+      setTiming(`<b class="ok">${perfect ? 'PERFECT' : 'PARRY ✓'}</b>${perfect ? 'right on the beat' : heldLong ? 'a held guard deflects · tap just before the blow for a perfect parry' : 'press a moment earlier for a perfect parry'}`);
     } else if (counter) callout('Riposte countered', 'bad', 'now you are staggered');
     else if (perfect) callout('Perfectly parried', 'bad', 'riposte incoming · try a counter parry');
   }
@@ -4726,7 +4732,7 @@ function resolveArt(a, b, sp){
   const dg = dodgeState(b, inc);
   if (dg && (sp.allow.includes(b.dodgeKind) || (b.dodgeKind === 'flip' && (sp.allow.includes('roll') || sp.allow.includes('jump'))))){ a.art.dodged++; a.atk.dodged = true; dodgeSuccess(b, a, dg === 'perfect', b.dodgeKind); return 'dodged'; }
   if (b.state === 'parry'){
-    const into = T - b.parryPressT, perfect = into >= S.window*.45 || b.counterParry;
+    const into = T - b.parryPressT, perfect = parryPerfect(b);
     const angOk = !(b.w.noHeavyParry && sp.heavy) && (sp.anyAngle || sweepDist(b, inc).diff <= (S.tol + b.w.tolBonus + 15)*DEG);
     if (angOk){
       if (perfect && sp.parry !== 'crush'){ artParried(a, b); return 'parried'; }
@@ -5011,7 +5017,7 @@ function shuriMeets(p, a, b){
     return 'keep';
   }
   if (b.state === 'parry'){
-    const into = T - b.parryPressT, perfect = into >= S.window*.45 || b.counterParry;
+    const into = T - b.parryPressT, perfect = parryPerfect(b);
     enter(b, 'idle');
     b.pose.alpha = wrap(b.parryAngle + Math.PI/2); b.pose.phi = 16*DEG; b.pose.off = 1;
     clashFx(cp, perfect, 1); streaks(cp, perfect ? GOLD : INK, perfect ? 18 : 10, 5, .6);
@@ -5096,7 +5102,9 @@ function stepFighter(f, dt){
   let mob = 0;
   if (f.state === 'idle') mob = 1;
   else if (f.state === 'windup') mob = f.atk.heavy ? .3 : .5;
-  else if (f.state === 'parry') mob = .35;
+  else if (f.state === 'parry') mob = .78;
+  else if (f.state === 'parryRecover') mob = .5;
+  else if (f.state === 'deflect') mob = .45;
   else if (f.state === 'recovery') mob = .25;
   else if (f.state === 'crouch') mob = .38;
   else if (f.state === 'hold') mob = .3;
@@ -5151,16 +5159,18 @@ function stepFighter(f, dt){
       }
       break;
     }
-    case 'parry':
-      if (f.t >= f.dur){
-        enter(f, 'parryRecover', S.whiff);
-        addPosture(f, 8);
+    case 'parry': {
+      const held = f.ctl && f.ctl.rmb && !f.counterParry && f.t < GUARD_MAX;
+      if (f.t >= f.dur && !held){
+        enter(f, 'parryRecover', S.whiff*(f.t > S.window + 40 ? .55 : .7));
+        addPosture(f, 5);
         if (f.isPlayer && fight() && f.opp.state !== 'windup' && f.opp.state !== 'active'){
           f.stats.whiff++;
           setTiming(`<b class="bad">WASTED PARRY</b>nothing was coming · you are open`);
         }
       }
       break;
+    }
     case 'dash': {
       // quick ramp to full speed, then the body's weight drags it down
       const u = f.t/f.dur, prof = u < .2 ? lerp(.35, 1, u/.2) : lerp(1, .5, (u - .2)/.8);
@@ -5227,18 +5237,18 @@ function stepFighter(f, dt){
    mv mouse travel (for the bind), ev events: L left press, R right press / Q, D dash, O roll, E spin, J jump, T throw, W+/W- wheel, K:x a QTE letter.
    Each fighter's packet is read by playerControl() at the step it belongs to, which is what lets two machines agree online. */
 const keys = {};
-const input = { guard:.35, stick:{ x:30, y:12 }, lmb:false, lmbT:0, drag:{ x:0, y:0 }, downRel:{ x:0, y:0 } };
+const input = { guard:.35, stick:{ x:30, y:12 }, rmb:false, lmb:false, lmbT:0, drag:{ x:0, y:0 }, downRel:{ x:0, y:0 } };
 const localEv = []; let localMv = 0;
 function sampleLocal(){
   const mx = ((keys.KeyD||keys.ArrowRight)?1:0) - ((keys.KeyA||keys.ArrowLeft)?1:0);
   const mz = ((keys.KeyW||keys.ArrowUp)?1:0) - ((keys.KeyS||keys.ArrowDown)?1:0);
   const L = Math.hypot(input.drag.x, input.drag.y);
-  const c = { mx, mz, g:q3(input.guard), lmb:input.lmb ? 1 : 0, cr:(keys.ControlLeft || keys.ControlRight || keys.KeyC) ? 1 : 0,
+  const c = { mx, mz, g:q3(input.guard), lmb:input.lmb ? 1 : 0, rmb:(input.rmb || keys.KeyQ) ? 1 : 0, cr:(keys.ControlLeft || keys.ControlRight || keys.KeyC) ? 1 : 0,
     dr:input.lmb && L > DRAG_MIN ? q3(wrap(Math.atan2(input.drag.y, input.drag.x) + Math.PI)) : 99, mv:q3(localMv), ev:localEv.splice(0) };
   localMv = 0;
   return c;
 }
-const EMPTY_CTL = { mx:0, mz:0, g:.35, lmb:0, cr:0, dr:99, mv:0, ev:[] };
+const EMPTY_CTL = { mx:0, mz:0, g:.35, lmb:0, rmb:0, cr:0, dr:99, mv:0, ev:[] };
 function playerControl(p){
   const c = p.ctl || EMPTY_CTL, o = p.opp;
   // events first: what a press means depends on the state at the step it lands in
@@ -6330,7 +6340,7 @@ function startRound(){
   G.after = null; clearQTE(); G.counterN = 0; G.proj = [];
   resetFighter(SIMF[0], 0, 2.6); resetFighter(SIMF[1], 0, -2.6);
   brainFoe = newBrain(); brainFoe.nextAtk = T + 1600;
-  input.lmb = false; localEv.length = 0;
+  input.lmb = false; input.rmb = false; localEv.length = 0;
   hitstop = slowmo = 0;
   G.chain = 0; G.lastClashT = -1e9; G.bind = null; Sfx.grind(false); chainUI();
   setDesat(false);
@@ -6422,9 +6432,10 @@ canvas.addEventListener('mousedown', e => {
   e.preventDefault();
   if (!locked) requestLock();
   if (e.button === 0){ input.lmb = true; input.lmbT = performance.now(); input.drag = { x:0, y:0 }; input.downRel = relToReticle(e); localEv.push('L'); }
-  else if (e.button === 2) localEv.push('R');
+  else if (e.button === 2){ input.rmb = true; localEv.push('R'); }
 });
 window.addEventListener('mouseup', e => {
+  if (e.button === 2) input.rmb = false;
   if (e.button !== 0 || !input.lmb) return;
   input.lmb = false;   // a held blade is released on the next step
 });
@@ -6452,6 +6463,7 @@ window.addEventListener('keydown', e => {
   else if (e.code === 'Escape' && !locked) pause();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
+window.addEventListener('blur', () => { input.rmb = false; keys.KeyQ = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; if (inPlay()) pause(); });
 
 function pause(){
@@ -6492,7 +6504,7 @@ function mountTune(sel){ $(sel).appendChild($('#tune')); }
    Free practice lets you pick the sensei's behaviour, and shows the timing data the lessons are built on. */
 const DOJO_LESSONS = [
   { t:'Guard and attack direction', d:'The mouse turns your blade. Left-click to attack; drag while clicking and the blow comes from that side. Hit the dummy from three sides: right, left and high.', s:{ mode:'dummy' }, goal:'dirs', need:3 },
-  { t:'Parry', d:'The sensei attacks slowly. The red arrow shows where the blow comes from. Turn your mouse to that side and right-click (or Q) just before it lands.', s:{ mode:'attack', slow:1.7 }, goal:'parry', need:3 },
+  { t:'Parry', d:'The sensei attacks slowly. The red arrow shows where the blow comes from. Turn your mouse to that side and right-click (or Q) just before it lands. Hold the button and your guard stays up and follows the mouse; a tap right on the beat is a perfect parry.', s:{ mode:'attack', slow:1.7 }, goal:'parry', need:3 },
   { t:'Perfect parry', d:'Press the parry late: 72 to 160 ms before the blow. The bar at the bottom left shows how early you pressed; land it in the gold zone.', s:{ mode:'attack', slow:1.35 }, goal:'perfect', need:2 },
   { t:'Riposte', d:'A perfect parry staggers the attacker for a long moment. Strike at once: a riposte deals far more damage.', s:{ mode:'attack', slow:1.3 }, goal:'riposte', need:2 },
   { t:'Dodge', d:'Just before the blow lands, roll with Space or dash with Shift. A dash only works at the last moment; a roll is more forgiving but takes longer.', s:{ mode:'attack', slow:1.4 }, goal:'dodge', need:3 },
@@ -6970,7 +6982,7 @@ function netBegin(cfg, isHost){
   if (isHost){ cfg.state = simSnapshot(); send(cfg); }
   else if (cfg.state) simRestore(cfg.state);
   netStatus(''); $('#netInfo').hidden = false;
-  input.lmb = false; localEv.length = 0; localMv = 0;
+  input.lmb = false; input.rmb = false; localEv.length = 0; localMv = 0;
   try { requestLock(); } catch(e) {}
   lastNow = performance.now();
 }
