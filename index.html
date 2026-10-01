@@ -662,13 +662,13 @@ const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: r
 
 /* ================= data ================= */
 const WEAPONS = {
-  katana:   { name:'Katana', tag:'Fast and precise', windL:360, windH:640, active:100, recovery:330, dmgL:13, dmgH:25, reach:2.2, lunge:.5, len:1.0, width:.042, move:1.05, riposteMul:1.9, feintFrac:.5, feintCost:1, tolBonus:0, hyper:false, noHeavyParry:false, posture:1, guard:'disc', mass:1, plus:'Highest riposte damage (x1.9)', minus:'Short reach' },
-  longsword:{ name:'Longsword', tag:'Balanced', windL:420, windH:720, active:110, recovery:380, dmgL:16, dmgH:29, reach:2.5, lunge:.5, len:1.15, width:.05, move:1, riposteMul:1.5, feintFrac:.5, feintCost:1, tolBonus:10, hyper:false, noHeavyParry:false, posture:1, guard:'cross', mass:1.05, plus:'Wider parry angle (+10°)', minus:'Master of nothing' },
-  zwei:     { name:'Zweihänder', tag:'Heavy and slow', windL:560, windH:960, active:140, recovery:620, dmgL:24, dmgH:44, reach:3.0, lunge:.35, len:1.5, width:.064, move:.85, riposteMul:1.4, feintFrac:.45, feintCost:1.2, tolBonus:0, hyper:true, noHeavyParry:false, posture:1.5, guard:'cross', mass:1.3, plus:'Hyper armor on heavy attacks, big posture damage', minus:'Long recovery, slow feet' },
-  dual:     { name:'Twin Blades', tag:'Two blades, one dance', windL:290, windH:540, active:90, recovery:290, dmgL:10, dmgH:19, reach:2.05, lunge:.6, len:.84, width:.036, move:1.12, riposteMul:1.6, feintFrac:.6, feintCost:.8, tolBonus:-5, hyper:false, noHeavyParry:false, posture:.85, guard:'disc', mass:.8, comboMax:4, plus:'4-hit combo, fastest windup', minus:'Short reach, low damage, narrow parry angle' },
-  rapier:   { name:'Rapier', tag:'Reach and feints', windL:300, windH:560, active:100, recovery:300, dmgL:10, dmgH:20, reach:2.9, lunge:.7, len:1.3, width:.018, move:1.1, riposteMul:1.6, feintFrac:.7, feintCost:.5, tolBonus:0, hyper:false, noHeavyParry:true, posture:1, guard:'cup', mass:.85, plus:'Cheap, late feints', minus:'Cannot parry heavy attacks' },
-  spear:    { name:'Spear', tag:'Keep them at the point', windL:380, windH:700, active:120, recovery:390, dmgL:15, dmgH:27, reach:3.3, lunge:.75, len:1.83, width:.05, move:.95, riposteMul:1.5, feintFrac:.55, feintCost:.9, tolBonus:0, hyper:false, noHeavyParry:false, posture:1.1, guard:'cross', mass:1.15, thrust:true, close:1.6, plus:'Longest reach · every blow is a thrust', minus:'Up close (under 1.6 m) the parry angle narrows' },
-  kusari:   { name:'Kusarigama', tag:'Chain and sickle', windL:300, windH:620, active:100, recovery:320, dmgL:11, dmgH:16, reach:2.0, lunge:.6, len:.2, width:.04, move:1.1, riposteMul:1.7, feintFrac:.6, feintCost:.8, tolBonus:-8, hyper:false, noHeavyParry:true, posture:.9, guard:'disc', mass:.8, chain:2.5, plus:'Heavy attack throws the chain from afar and pulls them in', minus:'Short sickle · narrow parry · cannot parry heavy blows' },
+  katana:   { name:'Katana', tag:'Fast and precise', windL:335, windH:640, active:100, recovery:310, dmgL:14, dmgH:25, reach:2.2, lunge:.5, len:1.0, width:.042, move:1.05, riposteMul:1.9, feintFrac:.5, feintCost:1, tolBonus:0, hyper:false, noHeavyParry:false, posture:1, guard:'disc', mass:1, plus:'Highest riposte damage (x1.9)', minus:'Short reach' },
+  longsword:{ name:'Longsword', tag:'Balanced', windL:400, windH:720, active:110, recovery:380, dmgL:17, dmgH:29, reach:2.5, lunge:.5, len:1.15, width:.05, move:1, riposteMul:1.5, feintFrac:.5, feintCost:1, tolBonus:10, hyper:false, noHeavyParry:false, posture:1, guard:'cross', mass:1.05, plus:'Wider parry angle (+10°)', minus:'Master of nothing' },
+  zwei:     { name:'Zweihänder', tag:'Heavy and slow', windL:490, windH:960, active:140, recovery:540, dmgL:25, dmgH:44, reach:3.0, lunge:.35, len:1.5, width:.064, move:.85, riposteMul:1.4, feintFrac:.45, feintCost:1.2, tolBonus:0, hyper:true, noHeavyParry:false, posture:1.5, guard:'cross', mass:1.3, plus:'Hyper armor on heavy attacks, big posture damage', minus:'Long recovery, slow feet' },
+  dual:     { name:'Twin Blades', tag:'Two blades, one dance', windL:320, windH:560, active:90, recovery:290, dmgL:10, dmgH:19, reach:2.05, lunge:.6, len:.84, width:.036, move:1.12, riposteMul:1.6, feintFrac:.6, feintCost:.8, tolBonus:-5, hyper:false, noHeavyParry:false, posture:.85, guard:'disc', mass:.8, comboMax:4, plus:'4-hit combo, fastest windup', minus:'Short reach, low damage, narrow parry angle' },
+  rapier:   { name:'Rapier', tag:'Reach and feints', windL:345, windH:560, active:100, recovery:330, dmgL:10, dmgH:18, reach:2.8, lunge:0.6, len:1.3, width:.018, move:1.1, riposteMul:1.6, feintFrac:.7, feintCost:.5, tolBonus:0, hyper:false, noHeavyParry:true, posture:1, guard:'cup', mass:.85, plus:'Cheap, late feints', minus:'Cannot parry heavy attacks' },
+  spear:    { name:'Spear', tag:'Keep them at the point', windL:400, windH:700, active:120, recovery:460, dmgL:13, dmgH:22, reach:3.15, lunge:0.6, len:1.83, width:.05, move:.95, riposteMul:1.5, feintFrac:.55, feintCost:.9, tolBonus:0, hyper:false, noHeavyParry:false, posture:1.1, guard:'cross', mass:1.15, thrust:true, close:1.6, plus:'Longest reach · every blow is a thrust', minus:'Up close (under 1.6 m) the parry angle narrows' },
+  kusari:   { name:'Kusarigama', tag:'Chain and sickle', windL:300, windH:640, active:100, recovery:320, dmgL:12, dmgH:16, reach:2.0, lunge:.6, len:.2, width:.04, move:1.1, riposteMul:1.7, feintFrac:.6, feintCost:.8, tolBonus:-4, hyper:false, noHeavyParry:true, posture:.9, guard:'disc', mass:.8, chain:2.5, plus:'Heavy attack throws the chain from afar and pulls them in', minus:'Short sickle · narrow parry · cannot parry heavy blows' },
 };
 const MAX_HP = 200;   // twice the original pool: longer duels, more exchanges before the finisher
 const DIFFS = {
@@ -3519,8 +3519,8 @@ function buildWeapon(v, w){
   v.weapon2.visible = key === 'dual';
   if (key === 'dual'){ const g2 = g.clone(true); g2.scale.x = -1; v.weapon2.add(g2); }
   v.tip.position.set(B0 + L, 0, 0); v.base.position.set(B0 + L*.3, 0, 0);
-  v.gripA.position.x = key === 'zwei' ? -.16 : key === 'rapier' ? -.06 : key === 'spear' ? .36 : -.08;
-  v.gripB.position.x = key === 'rapier' ? .07 : key === 'spear' ? -.12 : .06;
+  v.gripA.position.x = key === 'zwei' ? -.16 : key === 'rapier' ? -.06 : key === 'spear' ? .2 : -.08;
+  v.gripB.position.x = key === 'rapier' ? .07 : key === 'spear' ? -.36 : .06;
   if (key === 'spear') v.base.position.x = B0 + L - .36;
   if (key === 'kusari'){ v.tip.position.set(.4, .27, 0); v.base.position.set(.34, .04, 0); }
 }
@@ -3694,7 +3694,7 @@ function tryAttack(f, angle, heavy, opts){
     // the next cut starts where the last one ended: from the opposite side, quicker
     n = (f.atk.combo || 1) + 1;
     angle = wrap(f.atk.angle + Math.PI + srand(-.25, .25)); heavy = false;
-    dur = f.w.windL*S.speed*.62;
+    dur = f.w.windL*S.speed*(f.wkey === 'dual' ? .74 : .62);
   }
   else if (rip) dur *= .6;
   else if (T < f.rallyUntil) dur *= tempo();   // counters inside a rally get quicker with every clash
@@ -3905,7 +3905,7 @@ function resolve(a, b){
     chamber(b, a); return;
   }
   const incoming = mirror(atk.angle);
-  const tolDeg = S.tol + b.w.tolBonus - (b.w.close && dist(a, b) < b.w.close ? 12 : 0);   // a spear cannot turn its length inside the guard
+  const tolDeg = S.tol + b.w.tolBonus - (b.w.close && dist(a, b) < b.w.close ? 18 : 0);   // a spear cannot turn its length inside the guard
   if (b.state === 'parry'){
     const sd = sweepDist(b, incoming), diff = sd.diff;
     const heavyBlocked = b.w.noHeavyParry && atk.heavy;
@@ -5806,6 +5806,7 @@ function update(dt){
 }
 
 /* ================= visuals per frame ================= */
+const _wq3 = new THREE.Quaternion(), _wp2 = new THREE.Vector3();
 const BLADE_STEEL = new THREE.Color(0xe6ebf0), BLADE_BLOOD = new THREE.Color(0x5a0a10);
 function poseFighter(f, dt, now){
   const v = f.v, P = f.pose, a = f.atk;
@@ -5878,10 +5879,10 @@ function poseFighter(f, dt, now){
   // the head leans toward the side the blow comes from, which is the angle the defender has to meet.
   v.atkThrust = 0;
   if (f.w && f.w.thrust){
-    if (a && !a.art && (f.state === 'windup' || f.state === 'hold')){ const q = f.state === 'hold' ? 1 : easeOut(u); alpha = a.angle; phi = lerp(70, a.heavy ? 56 : 63, q)*DEG; v.atkThrust = -(a.heavy ? .62 : .4)*q; lean = (a.heavy ? .2 : .08)*q; drop = (a.heavy ? .08 : .03)*q; }
-    else if (a && !a.art && f.state === 'active'){ const q = easeOut(Math.min(1, u*1.7)); alpha = a.angle; phi = lerp(a.heavy ? 56 : 63, 86, q)*DEG; v.atkThrust = lerp(a.heavy ? -.62 : -.4, a.heavy ? 1.5 : 1.2, q); lean = a.heavy ? -.34 : -.26; drop = a.heavy ? .1 : .05; snap = true; }
-    else if (a && !a.art && f.state === 'recovery'){ const q = smooth(u); alpha = lerpAng(a.angle, f.guardAngle, q); phi = lerp(86, 70, q)*DEG; v.atkThrust = lerp(1.2, 0, q); lean = lerp(-.26, 0, u); }
-    else if (f.state === 'idle' || f.state === 'crouch' || f.state === 'dash' || f.state === 'jump') phi = Math.max(phi, 70*DEG);
+    if (a && !a.art && (f.state === 'windup' || f.state === 'hold')){ const q = f.state === 'hold' ? 1 : easeOut(u); alpha = a.angle; phi = lerp(78, a.heavy ? 68 : 72, q)*DEG; v.atkThrust = -(a.heavy ? .62 : .4)*q; lean = (a.heavy ? .2 : .08)*q; drop = (a.heavy ? .08 : .03)*q; }
+    else if (a && !a.art && f.state === 'active'){ const q = easeOut(Math.min(1, u*1.7)); alpha = a.angle; phi = lerp(a.heavy ? 68 : 72, 87, q)*DEG; v.atkThrust = lerp(a.heavy ? -.62 : -.4, a.heavy ? 1.5 : 1.2, q); lean = a.heavy ? -.34 : -.26; drop = a.heavy ? .1 : .05; snap = true; }
+    else if (a && !a.art && f.state === 'recovery'){ const q = smooth(u); alpha = lerpAng(a.angle, f.guardAngle, q); phi = lerp(87, 78, q)*DEG; v.atkThrust = lerp(1.2, 0, q); lean = lerp(-.26, 0, u); }
+    else if (f.state === 'idle' || f.state === 'crouch' || f.state === 'dash' || f.state === 'jump') phi = Math.max(phi, 78*DEG);
   }
   // flourish: integrate the spin, let it slow, then settle the blade back to the nearest full turn
   /* flourish: the blade spins round the right hand in the plane beside the body. Gravity pulls the tip down, so it
@@ -5942,7 +5943,10 @@ function poseFighter(f, dt, now){
   const og = f.state === 'qte' ? (f.qteParry || 0) : f.parryAngle, shv = (G.phase === 'intro' || G.phase === 'finisher') ? (f.sheath || 0) : 0, thrust = (f.thrust || 0) + (v.artThrust || 0) + (v.atkThrust || 0);
   const flA = canAct(f) ? (f.twHold || 0) : 0, thF = 38*DEG + (f.twAng || 0), sw = Math.min(1, Math.abs(f.twVel || 0)/18)*flA;
   const fl2 = .22*flA;
-  v.rig.position.set(v.rigBase.x + Math.cos(og)*.26*P.off - .2*shv + fl2, v.rigBase.y + Math.sin(og)*.22*P.off - .28*shv - Math.cos(thF)*.05*sw, v.rigBase.z - .06*P.off + .16*shv - .32*thrust + Math.sin(thF)*.05*sw);
+  // a spear is carried low at the hip, the shaft running back past the body
+  v.spearK = lerp(v.spearK || 0, f.w && f.w.thrust && f.state !== 'parry' && f.state !== 'qte' && f.state !== 'bind' && f.state !== 'art' && f.state !== 'flip' && f.state !== 'roll' ? 1 : 0, 1 - Math.exp(-(dt || 0)*.02));
+  const spK = v.spearK;
+  v.rig.position.set(v.rigBase.x + Math.cos(og)*.26*P.off - .2*shv + fl2 + .06*spK, v.rigBase.y + Math.sin(og)*.22*P.off - .28*shv - Math.cos(thF)*.05*sw - .24*spK, v.rigBase.z - .06*P.off + .16*shv - .32*thrust + Math.sin(thF)*.05*sw + .1*spK);
   const twA = canAct(f) ? (f.twAng || 0) : 0, gB = v.gripB.position.x;
   v.weapon.rotation.y = (twirling ? (f.twirlDir || 1)*TAU*easeOut((T - f.twirlT)/320) : 0) + twA;
   v.weapon.position.set(.17 + gB - gB*Math.cos(twA), 0, gB*Math.sin(twA));
@@ -6126,11 +6130,24 @@ function poseFighter(f, dt, now){
   v.root.updateMatrixWorld(true);
   v.gripB.getWorldPosition(_b); v.body.worldToLocal(_b);
   if (f.wkey === 'dual' && v.weapon2){
-    // twin blades: the left hand and its sword mirror the right across the body
+    // twin blades: the left hand and its sword mirror the right across the body. While one blade cuts, the other holds a
+    // guard on the left, so the blow reads as one blade from one side instead of two from both.
+    const cutting = a && !a.art && (f.state === 'windup' || f.state === 'hold' || f.state === 'active' || f.state === 'recovery');
+    v.offK = lerp(v.offK || 0, cutting ? 1 : 0, 1 - Math.exp(-(dt || 0)*.025));
     _a.set(-_b.x, _b.y, _b.z);
     v.weapon.getWorldQuaternion(_wq1); v.body.getWorldQuaternion(_wq2); _wq2.invert().multiply(_wq1);
     v.weapon2.quaternion.set(_wq2.x, -_wq2.y, -_wq2.z, _wq2.w);
     v.weapon.getWorldPosition(_wp1); v.body.worldToLocal(_wp1); v.weapon2.position.set(-_wp1.x, _wp1.y, _wp1.z);
+    if (v.offK > .01){
+      // the same mirror, taken from a fixed guard pose of the right blade
+      const rz = v.rig.rotation.z, sy = v.swing.rotation.y;
+      v.rig.rotation.z = 75*DEG; v.swing.rotation.y = 32*DEG; v.rig.updateMatrixWorld(true);
+      v.weapon.getWorldQuaternion(_wq1); v.body.getWorldQuaternion(_wq2); _wq2.invert().multiply(_wq1); _wq3.set(_wq2.x, -_wq2.y, -_wq2.z, _wq2.w);
+      v.weapon.getWorldPosition(_wp1); v.body.worldToLocal(_wp1); _wp1.x = -_wp1.x;
+      v.gripB.getWorldPosition(_wp2); v.body.worldToLocal(_wp2); _wp2.x = -_wp2.x;
+      v.rig.rotation.z = rz; v.swing.rotation.y = sy; v.rig.updateMatrixWorld(true);
+      v.weapon2.quaternion.slerp(_wq3, v.offK); v.weapon2.position.lerp(_wp1, v.offK); _a.lerp(_wp2, v.offK);
+    }
   } else if (f.w && f.w.chain){ chainHand(f, _a, now); if (f.state === 'throw') _a.copy(throwArm(f, f.t/Math.max(1, f.dur))); }
   else { v.gripA.getWorldPosition(_a); v.body.worldToLocal(_a); if (flA > .01) _a.lerp(LEFT_REST, flA); if (f.state === 'throw') _a.copy(throwArm(f, f.t/Math.max(1, f.dur))); }
   placeArm(v.armL, v.foreL, v.elbowL, SH_L, _a, -1); v.handL.position.copy(_a);
@@ -6149,9 +6166,12 @@ function poseFighter(f, dt, now){
 const CHAIN_N = 22, _chH = new THREE.Vector3(), _chW = new THREE.Vector3(), _chP = new THREE.Vector3(), _chQ = new THREE.Vector3(), _chM = new THREE.Matrix4(), _chR = new THREE.Quaternion(), _chR2 = new THREE.Quaternion(), _chX = new THREE.Vector3(1, 0, 0), _chS = new THREE.Vector3(1, 1, 1);
 function makeChain(){
   const group = new THREE.Group(); scene.add(group);
-  const links = new THREE.InstancedMesh(new THREE.TorusGeometry(.022, .006, 4, 8), toon(0x3A3631), CHAIN_N); links.castShadow = true; links.frustumCulled = false; group.add(links);
-  const weight = new THREE.Mesh(new THREE.CylinderGeometry(.034, .04, .1, 8), toon(0x2A2622)); weight.castShadow = true; group.add(weight); outline(weight, .006);
-  return { group, links, weight, last:new THREE.Vector3(), has:false };
+  const links = new THREE.InstancedMesh(new THREE.TorusGeometry(.03, .009, 4, 8), toon(0x2E2A26), CHAIN_N); links.castShadow = true; links.frustumCulled = false; group.add(links);
+  const weight = new THREE.Mesh(new THREE.CylinderGeometry(.05, .058, .13, 8), toon(0x2A2622)); weight.castShadow = true; group.add(weight); outline(weight, .008);
+  // the whirl: a faint ring where the weight circles, red, so the side of the coming throw reads at a glance
+  const whirl = new THREE.Mesh(new THREE.RingGeometry(.4, .5, 40), new THREE.MeshBasicMaterial({ color:RED, transparent:true, opacity:0, depthWrite:false, side:THREE.DoubleSide }));
+  whirl.userData.noEdge = true; group.add(whirl);
+  return { group, links, weight, whirl, last:new THREE.Vector3(), has:false };
 }
 function chainHand(f, out, now){
   const a = f.atk, st = f.state, sway = Math.sin(now*.004 + (f.isPlayer ? 0 : 1.3));
@@ -6170,12 +6190,18 @@ function updateChain(f, handLocal, now){
   let taut = false;
   if (a && a.heavy && !a.art && (st === 'windup' || st === 'hold')){
     // whirling over the head: a circle in the body's side plane, faster as the throw nears
-    const th = now*(st === 'hold' ? .03 : .022) + (f.isPlayer ? 0 : 2);
-    _chW.set(-.34 + Math.cos(th)*.55, 1.05 + Math.sin(th)*.55, -.06 + Math.sin(th*.5)*.12); v.body.localToWorld(_chW); taut = true;
+    // whirling on the side the throw will come from: the circle sits out along the blow's angle
+    const th = now*(st === 'hold' ? .03 : .022) + (f.isPlayer ? 0 : 2), ca = Math.cos(a.angle), sa = Math.sin(a.angle);
+    _chW.set(ca*.55 + Math.cos(th)*.45, .95 + sa*.5 + Math.sin(th)*.45, -.06 + Math.sin(th*.5)*.12); v.body.localToWorld(_chW); taut = true;
+    _chP.set(ca*.55, .95 + sa*.5, -.06); v.body.localToWorld(_chP); C.whirl.position.copy(_chP); C.whirl.quaternion.copy(v.body.getWorldQuaternion(_wq2));
+    C.whirl.material.opacity = Math.min(.55, C.whirl.material.opacity + .08); C.whirl.visible = true;
   } else if (st === 'active' && a && a.chain){
     const q = easeOut(Math.min(1, f.t/Math.max(1, f.dur)*1.5)), reach = f.w.reach + f.w.chain + .3;
     _chP.set(o.pos.x, 1.2, o.pos.z); const dd = _chP.distanceTo(_chH), k = Math.min(1, reach/Math.max(.01, dd));
-    _chW.copy(_chH).lerp(_chP, k*q); taut = true;
+    _chW.copy(_chH).lerp(_chP, k*q);
+    // it flies in an arc that bows out on the blow's side, so the defender sees where it will come from
+    _chQ.set(Math.cos(a.angle), Math.sin(a.angle), 0).applyQuaternion(v.body.getWorldQuaternion(_wq2));
+    _chW.addScaledVector(_chQ, Math.sin(Math.PI*q)*Math.min(1.1, dd*.3)*(1 - q*.4)); taut = true;
   } else if (st === 'recovery' && a && a.chain){
     hang(_chP); const q = smooth(Math.min(1, f.t/Math.max(1, f.dur)*1.8)); _chW.copy(C.last).lerp(_chP, q);
   } else if (st === 'art' && f.art && f.art.k === 'kusari'){
@@ -6189,6 +6215,7 @@ function updateChain(f, handLocal, now){
       _chW.set(f.pos.x + Math.cos(th)*r, .95 + .25*Math.sin(Math.PI*q), f.pos.z + Math.sin(th)*r); taut = true;
     } else hang(_chW);
   } else hang(_chW);
+  if (!(a && a.heavy && !a.art && (st === 'windup' || st === 'hold'))){ C.whirl.material.opacity = Math.max(0, C.whirl.material.opacity - .1); C.whirl.visible = C.whirl.material.opacity > 0; }
   C.last.copy(_chW);
   // the links: a straight run when taut, a slack sag otherwise
   const L = _chH.distanceTo(_chW), sag = taut ? .03*L : Math.max(0, .55 - L)*.4;
