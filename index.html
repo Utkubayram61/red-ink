@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@500;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&text=%E8%A6%8B%E5%88%87%E3%82%8A%E6%96%AC%E8%BF%94%E3%81%97%E5%B4%A9%E4%B8%80%E9%96%83%E5%8B%9D%E6%95%97%E6%A5%B5%E7%9F%B3%E9%A2%A8%E9%9B%AA%E5%B5%90%E7%AB%B9%E8%96%94%E8%96%87%E5%A4%A9%E5%89%B2%E6%97%8B%E9%9B%B7%E7%AA%81%E5%8F%8C%E6%8A%80%E9%A6%96%E8%B2%AB%E4%BB%8B%E9%8C%AF%E5%85%9C%E9%BE%8D%E8%9B%87%E5%B7%BB&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&text=%E8%A6%8B%E5%88%87%E3%82%8A%E6%96%AC%E8%BF%94%E3%81%97%E5%B4%A9%E4%B8%80%E9%96%83%E5%8B%9D%E6%95%97%E6%A5%B5%E7%9F%B3%E9%A2%A8%E9%9B%AA%E5%B5%90%E7%AB%B9%E8%96%94%E8%96%87%E5%A4%A9%E5%89%B2%E6%97%8B%E9%9B%B7%E7%AA%81%E5%8F%8C%E6%8A%80%E9%A6%96%E8%B2%AB%E4%BB%8B%E9%8C%AF%E5%85%9C%E9%BE%8D%E8%9B%87%E5%B7%BB%E5%AF%BE%E7%B8%81%E9%81%93%E5%A7%BF%E8%A8%AD&display=swap" rel="stylesheet">
 <style>
 /* Layout: full-bleed ink-on-paper arena; HUD pinned to the edges; menus are paper sheets on the left with a tuning column on the right.
    One deliberate look: paper, ink, one red for blood and danger, gold only for perfect moments. */
@@ -300,6 +300,119 @@ details.ctrls[open] summary::before{content:"– "}
 #gate .btn{width:100%;font-size:20px}
 #gate .g-done{font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:var(--gold);min-height:1.4em;text-align:center}
 #gate .g-anyway{justify-self:center;background:none;border:0;padding:6px;font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+
+/* ================= the menu: a fighting-game front end over the live 3D scene =================
+   Title (your duelist in the light, the menu down the left) · Select (both fighters face to face, the roster below)
+   · Online · Settings · then a VS card. The 3D cameras for each screen live in updateCamera. */
+#menu.fg{display:block;padding:0;background:none;overflow:hidden}
+.scr{position:absolute;inset:0;overflow:hidden}
+.scr[hidden]{display:none}
+.scr .kick{font-family:var(--mono);font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--red)}
+/* title */
+#scrTitle{background:linear-gradient(90deg,rgba(236,228,210,.97) 0%,rgba(236,228,210,.88) 34%,rgba(236,228,210,0) 58%)}
+#scrTitle .tcol{position:absolute;left:max(24px,5vw);top:0;bottom:0;width:min(520px,46vw);display:flex;flex-direction:column;justify-content:center;gap:clamp(14px,2.6vh,26px);padding-block:32px}
+#scrTitle h1{font-size:clamp(52px,min(8.4vw,12.5vh),118px)}
+#scrTitle .title{gap:18px}
+.mlist{display:grid;gap:2px;margin-top:clamp(4px,1.5vh,14px)}
+.mi{position:relative;display:grid;grid-template-columns:44px 1fr;align-items:baseline;gap:0 14px;padding:8px 10px 8px 0;background:none;border:0;text-align:left;font:inherit;color:var(--ink);cursor:pointer}
+.mi .mk{font-family:'Yuji Syuku',var(--display);font-size:26px;line-height:1;color:var(--muted);text-align:center;transition:color .15s,transform .2s}
+.mi .ml{font-family:var(--display);font-weight:800;font-size:clamp(24px,min(3.2vw,5vh),40px);line-height:1.05;letter-spacing:.01em;transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+.mi .ms{grid-column:2;font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:2px}
+.mi::after{content:"";position:absolute;left:52px;bottom:4px;height:6px;width:0;background:var(--red);border-radius:2px 40% 60% 3px/6px 50% 50% 4px;transition:width .25s cubic-bezier(.2,.8,.2,1);opacity:.9}
+.mi:hover .ml,.mi.on .ml,.mi:focus-visible .ml{transform:translateX(10px)}
+.mi:hover .mk,.mi.on .mk,.mi:focus-visible .mk{color:var(--red);transform:scale(1.12)}
+.mi:hover::after,.mi.on::after,.mi:focus-visible::after{width:min(240px,60%)}
+.mi:focus-visible{outline:none}
+.tfoot{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.tfoot kbd{font-family:inherit;color:var(--ink);padding:1px 6px;border:1px solid var(--line)}
+.hero{position:absolute;right:max(24px,4vw);bottom:max(24px,5vh);display:grid;justify-items:end;gap:4px;text-align:right;pointer-events:none;text-shadow:0 0 18px rgba(236,228,210,.9),0 0 4px rgba(236,228,210,.9)}
+.hero .hn{font-family:var(--display);font-weight:800;font-size:clamp(40px,4.6vw,64px);line-height:1;color:var(--ink)}
+.hero .hk{font-family:'Yuji Syuku',var(--display);font-size:clamp(90px,10vw,150px);line-height:.8;color:var(--red);opacity:.85;margin-bottom:-6px}
+.hero .ha{font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink2)}
+.hero .hc{pointer-events:auto;margin-top:8px;font:inherit;font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink);background:rgba(236,228,210,.85);border:1.5px solid var(--ink);padding:7px 12px;cursor:pointer}
+.hero .hc:hover{background:var(--ink);color:var(--paper)}
+/* select */
+#scrSelect{background:linear-gradient(180deg,rgba(236,228,210,.95) 0%,rgba(236,228,210,.0) 20%,rgba(236,228,210,0) 58%,rgba(236,228,210,.94) 74%,rgba(236,228,210,.98) 100%)}
+.stop{position:absolute;left:0;right:0;top:0;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:20px max(20px,3vw) 0}
+.stop h2{margin:2px 0 0;font-family:var(--display);font-weight:800;font-size:clamp(28px,3vw,42px);line-height:1;text-align:center}
+.stop .sc{text-align:center}
+.back{justify-self:start;display:flex;gap:8px;align-items:center;font:inherit;font-family:var(--mono);font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink);background:none;border:0;cursor:pointer;padding:8px 0}
+.back:hover{color:var(--red)}
+.pcard{position:absolute;top:clamp(92px,13vh,130px);width:min(300px,25vw);display:grid;gap:8px;padding:16px 18px 14px;background:rgba(236,228,210,.9);border:1.5px solid var(--ink)}
+.pcard.p1{left:max(20px,3vw);box-shadow:6px 6px 0 var(--ink)}
+.pcard.p2{right:max(20px,3vw);box-shadow:-6px 6px 0 var(--red);border-color:var(--red)}
+.pcard .pl{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--red)}
+.pcard .pl b{color:var(--ink);font-weight:600}
+.pcard .pn{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:800;font-size:clamp(26px,2.5vw,34px);line-height:1}
+.pcard .pn .q{display:inline-grid;place-items:center;width:1.1em;height:1.1em;background:var(--ink);color:var(--paper);font-size:.8em}
+.pcard .pt{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-top:-2px}
+.stats4{display:grid;gap:5px;margin:4px 0 2px}
+.st4{display:grid;grid-template-columns:62px 1fr;align-items:center;gap:10px;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2)}
+.st4 i{position:relative;height:7px;background:rgba(21,19,15,.12);overflow:hidden}
+.st4 i::before{content:"";position:absolute;inset:0 auto 0 0;width:calc(var(--v)*100%);background:var(--ink);transition:width .35s cubic-bezier(.2,.8,.2,1)}
+.p2 .st4 i::before{background:var(--red)}
+.pcard .part{display:flex;gap:10px;align-items:center;font-size:13px;color:var(--ink2);border-top:1px solid var(--line);padding-top:8px}
+.pcard .part .k{font-family:'Yuji Syuku',var(--display);font-size:30px;line-height:1;color:var(--gold)}
+.pcard .part b{display:block;font-family:var(--display);font-weight:800;font-size:16px;color:var(--ink)}
+.pcard .pp{font-size:12.5px;line-height:1.4;color:var(--ink2)}
+.pcard .pp.neg{color:var(--muted)}
+.cyc{display:flex;align-items:center;gap:8px}
+.cyc button{width:30px;height:30px;display:grid;place-items:center;font:inherit;font-size:18px;line-height:1;background:transparent;border:1.5px solid var(--ink);color:var(--ink);cursor:pointer}
+.cyc button:hover{background:var(--ink);color:var(--paper)}
+.pcard .seg{margin-top:2px}
+.pcard.spin .pn{animation:shake .08s linear infinite}
+@keyframes shake{0%{transform:translateX(0)}50%{transform:translateX(2px)}100%{transform:translateX(0)}}
+.sbot{position:absolute;left:0;right:0;bottom:0;display:grid;gap:12px;padding:0 max(20px,3vw) clamp(16px,3vh,28px)}
+.rlabel{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.roster{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+.rt{position:relative;display:grid;gap:4px;justify-items:center;padding:10px 6px 8px;background:var(--paper2);border:1.5px solid var(--line);color:var(--ink);font:inherit;cursor:pointer;transition:transform .15s,border-color .15s,background .15s}
+.rt svg{width:100%;max-width:120px;height:34px;color:var(--ink2)}
+.rt .rn{font-family:var(--display);font-weight:800;font-size:15px;line-height:1.1;white-space:nowrap}
+.rt:hover{border-color:var(--ink2);transform:translateY(-2px)}
+.rt[aria-pressed="true"]{border-color:var(--ink);background:var(--paper);transform:translateY(-4px);box-shadow:0 4px 0 var(--ink)}
+.rt[aria-pressed="true"] svg{color:var(--ink)}
+.rt[aria-pressed="true"]::after{content:"1P";position:absolute;top:-10px;left:50%;transform:translateX(-50%) rotate(-3deg);font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.1em;padding:2px 6px;background:var(--red);color:var(--paper)}
+.rt:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.arow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:end}
+.arenas{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+.ac{position:relative;height:52px;display:flex;align-items:flex-end;padding:6px 8px;border:1.5px solid var(--line);background:linear-gradient(180deg,rgba(0,0,0,0) 35%,rgba(10,8,6,.62) 100%),var(--sky,linear-gradient(180deg,#B9B1A2,#E3D9C4));color:#fff;font:inherit;font-family:var(--display);font-weight:800;font-size:13.5px;line-height:1.1;text-align:left;cursor:pointer;text-shadow:0 1px 3px rgba(0,0,0,.55);overflow:hidden;transition:transform .12s,border-color .12s}
+.ac.rnd{background:repeating-linear-gradient(135deg,var(--ink) 0 10px,#2B2723 10px 20px);justify-content:center;align-items:center;font-size:15px;letter-spacing:.06em}
+.ac:hover{border-color:var(--ink);transform:translateY(-2px)}
+.ac[aria-pressed="true"]{border:2.5px solid var(--ink);box-shadow:0 4px 0 var(--ink);transform:translateY(-3px)}
+.ac.hit{border:2.5px solid var(--red);box-shadow:0 0 0 3px var(--red);transform:translateY(-3px) scale(1.04)}
+.ac:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.go{font-size:30px;padding:16px 46px 15px;letter-spacing:.06em;box-shadow:6px 6px 0 var(--ink)}
+.go:hover{box-shadow:6px 6px 0 var(--red)}
+.go[disabled]{opacity:.6;cursor:default}
+/* simple panels: online and settings */
+.panel{position:absolute;left:max(24px,5vw);top:50%;transform:translateY(-50%);width:min(560px,calc(100% - 48px));max-height:calc(100% - 48px);overflow-y:auto;display:grid;gap:16px;padding:24px 26px;background:rgba(236,228,210,.95);border:1.5px solid var(--ink);box-shadow:8px 8px 0 var(--ink)}
+.panel h2{margin:0;font-family:var(--display);font-weight:800;font-size:clamp(30px,3.2vw,44px);line-height:1}
+.panel .online{border:0;padding:0;margin:0}
+.panel .online>.lbl,.panel #tune>h3{display:none}
+.panel #tune{position:static;width:auto;max-height:none;box-shadow:none;border:0;padding:0;background:none}
+/* versus card */
+#vs{position:absolute;inset:0;z-index:20;overflow:hidden;pointer-events:none}
+#vs[hidden]{display:none}
+#vs .vh{position:absolute;top:0;bottom:0;width:58%;display:flex;flex-direction:column;justify-content:center;gap:6px;transition:transform .45s cubic-bezier(.2,.9,.2,1)}
+#vs .vl{left:-4%;padding-left:9vw;background:var(--paper);clip-path:polygon(0 0,100% 0,82% 100%,0 100%);transform:translateX(-100%)}
+#vs .vr{right:-4%;padding-right:9vw;align-items:flex-end;text-align:right;background:var(--ink);color:var(--paper);clip-path:polygon(18% 0,100% 0,100% 100%,0 100%);transform:translateX(100%)}
+#vs.in .vl,#vs.in .vr{transform:none}
+#vs .vk{font-family:'Yuji Syuku',var(--display);font-size:clamp(120px,16vw,240px);line-height:.85;color:var(--red);opacity:.9}
+#vs .vw{font-family:var(--display);font-weight:800;font-size:clamp(44px,5.6vw,86px);line-height:1}
+#vs .vp{font-family:var(--mono);font-size:13px;letter-spacing:.24em;text-transform:uppercase;color:var(--red)}
+#vs .vr .vp{color:#E9A79C}
+#vs .va{font-size:15px;letter-spacing:.12em;text-transform:uppercase;opacity:.75}
+#vs .vvs{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(2.4) rotate(-8deg);opacity:0;font-family:var(--display);font-weight:800;font-size:clamp(90px,11vw,170px);line-height:1;color:var(--red);text-shadow:5px 5px 0 var(--ink);transition:transform .35s cubic-bezier(.3,1.6,.4,1) .3s,opacity .2s .3s}
+#vs.in .vvs{transform:translate(-50%,-50%) scale(1) rotate(-8deg);opacity:1}
+#vs .vslash{position:absolute;left:50%;top:-10%;bottom:-10%;width:22px;margin-left:-11px;background:var(--red);transform:rotate(12deg) scaleY(0);transform-origin:top;transition:transform .3s cubic-bezier(.2,.9,.2,1) .2s}
+#vs.in .vslash{transform:rotate(12deg) scaleY(1)}
+#vs .varena{position:absolute;left:50%;bottom:7vh;transform:translateX(-50%);padding:10px 22px 12px;background:var(--paper);border:1.5px solid var(--ink);box-shadow:5px 5px 0 var(--red);white-space:nowrap;text-align:center;font-family:var(--display);font-weight:800;font-size:clamp(20px,2vw,28px);color:var(--ink);opacity:0;transition:opacity .4s .6s;text-shadow:0 0 12px var(--paper),0 0 4px var(--paper)}
+#vs .varena small{display:block;margin-top:4px;font-family:var(--body);font-weight:400;font-style:italic;font-size:14px;color:var(--ink2)}
+#vs.in .varena{opacity:1}
+#vs.out{opacity:0;transition:opacity .35s}
+@media (max-width:1100px){.pcard{width:min(260px,30vw)}.rt .rn{font-size:13px}.pcard .pp{display:none}}
+@media (max-width:860px){#scrTitle .tcol{width:auto;right:24px}.hero{display:none}.pcard{position:static;width:auto}.sel-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:84px 20px 0}.roster,.arenas{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (prefers-reduced-motion:reduce){.mi .ml,.mi::after,#vs .vh,#vs .vvs,#vs .vslash{transition:none}}
 </style>
 
 <div id="gate" hidden role="dialog" aria-labelledby="gHead">
@@ -393,18 +506,44 @@ details.ctrls[open] summary::before{content:"– "}
     </div>
     <div class="cstage" id="cStage"><span class="cdrag">drag · rotate</span></div>
   </div>
-  <div id="menu" class="overlay">
-    <div class="ov-main">
-      <div class="eyebrow">a 1v1 sword duel in steel and ink</div>
-      <div class="title"><h1>Red<span class="thin">Ink</span></h1><div class="seal" aria-hidden="true">steel<br>&amp;<br>ink</div></div>
-      <p class="lede">Your blade swings where you drag. A parry needs two things at once: the right moment and the right angle.</p>
-      <h2 class="lbl">Weapon</h2>
-      <div class="wgrid" id="wgrid"></div>
-      <div class="row">
-        <label for="bw">Opponent <select id="bw"></select></label>
-        <label for="ar">Arena <select id="ar"></select></label>
+  <div id="menu" class="overlay fg">
+    <section class="scr" id="scrTitle" aria-label="Main menu">
+      <div class="tcol">
+        <div class="eyebrow">a 1v1 sword duel in steel and ink</div>
+        <div class="title"><h1>Red<span class="thin">Ink</span></h1><div class="seal" aria-hidden="true">steel<br>&amp;<br>ink</div></div>
+        <nav class="mlist" id="mlist" aria-label="Main menu">
+          <button type="button" class="mi" data-go="select"><span class="mk" aria-hidden="true">対</span><span class="ml">Versus</span><span class="ms">duel the bot</span></button>
+          <button type="button" class="mi" data-go="online"><span class="mk" aria-hidden="true">縁</span><span class="ml">Online</span><span class="ms">a friend · a room code</span></button>
+          <button type="button" class="mi" id="dojoBtn"><span class="mk" aria-hidden="true">道</span><span class="ml">Dojo</span><span class="ms">learn the blade</span></button>
+          <button type="button" class="mi" id="custBtn"><span class="mk" aria-hidden="true">姿</span><span class="ml">Character</span><span class="ms">your look</span></button>
+          <button type="button" class="mi" data-go="settings"><span class="mk" aria-hidden="true">設</span><span class="ml">Settings</span><span class="ms">look · sound · bot</span></button>
+        </nav>
+        <div class="tfoot"><kbd>↑</kbd> <kbd>↓</kbd> choose · <kbd>Enter</kbd> select · mouse and keyboard</div>
       </div>
-      <div class="btns"><button class="btn" id="startBtn" type="button">Fight</button><button class="btn ghost" id="dojoBtn" type="button">Dojo</button><button class="btn ghost" id="custBtn" type="button">Character</button></div>
+      <div class="hero" aria-live="polite"><div class="hk" id="heroK"></div><div class="hn" id="heroN"></div><div class="ha" id="heroA"></div><button type="button" class="hc" data-go="select">Change weapon</button></div>
+    </section>
+
+    <section class="scr" id="scrSelect" hidden aria-label="Choose your weapon">
+      <div class="stop"><button type="button" class="back" data-go="title">← Back <span style="opacity:.6">Esc</span></button><div class="sc"><div class="kick">Versus</div><h2>Choose your blade</h2></div><div></div></div>
+      <div class="sel-cards">
+        <div class="pcard p1" id="p1card"></div>
+        <div class="pcard p2" id="p2card"></div>
+      </div>
+      <div class="sbot">
+        <div class="rlabel"><span>Weapon</span><span>← → change · Enter fight</span></div>
+        <div class="roster" id="wgrid" role="group" aria-label="Weapons"></div>
+        <div class="arow">
+          <div><div class="rlabel" style="margin-bottom:8px"><span>Arena</span><span id="arName"></span></div><div class="arenas" id="arenas" role="group" aria-label="Arena"></div></div>
+          <button class="btn go" id="startBtn" type="button">Fight</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="scr" id="scrOnline" hidden aria-label="Online">
+      <div class="panel">
+        <button type="button" class="back" data-go="title">← Back <span style="opacity:.6">Esc</span></button>
+        <div><div class="kick">Online</div><h2>Duel a friend</h2></div>
+        <p class="lede" style="font-size:15px">Create a room and send the code (or the link) to a friend, or type the code they sent you. Both of you pick your weapon on the Versus screen first.</p>
       <div class="online" id="onlineBox">
         <h2 class="lbl">Play a friend online</h2>
         <div class="row">
@@ -416,25 +555,14 @@ details.ctrls[open] summary::before{content:"– "}
         <div class="room" id="roomBox" hidden><span>Room code</span><strong id="roomCode">------</strong><button class="btn ghost small" id="copyBtn" type="button">Copy link</button></div>
         <p class="netst" id="netStatus" aria-live="polite"></p>
       </div>
-      <details class="ctrls">
-        <summary>Controls</summary>
-        <div class="keys">
-          <kbd>Mouse</kbd><span>Aim your guard</span>
-          <kbd>Left click</kbd><span>Attack · drag while clicking to choose the side · click again on a hit: combo</span>
-          <kbd>Hold left click</kbd><span>Heavy attack · keep holding until the ring turns gold: weapon art</span>
-          <kbd>Right click / Q</kbd><span>Parry · hold to keep your guard up and steer it with the mouse · tap just before the blow for a perfect parry · during your own windup: feint</span>
-          <kbd>WASD</kbd><span>Move around your opponent</span>
-          <kbd>Shift · Space</kbd><span>Dash · roll</span>
-          <kbd>T</kbd><span>Acrobatic flip · toward them up close: vault over their head · click in the air to cut on landing</span>
-          <kbd>C · R · E</kbd><span>Crouch · jump · spin</span>
-          <kbd>X</kbd><span>Throw a shuriken (5 per round)</span>
-          <kbd>Wheel</kbd><span>Twirl your sword</span>
-          <kbd>G · Esc</kbd><span>Attack indicator · pause</span>
-        </div>
-      </details>
-      <p class="mnote">Mouse and keyboard, desktop browser.</p>
-    </div>
-    <div class="slot" id="slotMenu">
+      </div>
+    </section>
+
+    <section class="scr" id="scrSettings" hidden aria-label="Settings">
+      <div class="panel">
+        <button type="button" class="back" data-go="title">← Back <span style="opacity:.6">Esc</span></button>
+        <div><div class="kick">Settings</div><h2>Settings</h2></div>
+        <div class="slot" id="slotMenu">
       <aside id="tune" aria-label="Settings">
         <h3>Settings</h3>
         <div class="adv">
@@ -458,7 +586,32 @@ details.ctrls[open] summary::before{content:"– "}
         </div>
         <button type="button" class="linkbtn" id="t-reset">Reset to defaults</button>
       </aside>
-    </div>
+        </div>
+      <details class="ctrls">
+        <summary>Controls</summary>
+        <div class="keys">
+          <kbd>Mouse</kbd><span>Aim your guard</span>
+          <kbd>Left click</kbd><span>Attack · drag while clicking to choose the side · click again on a hit: combo</span>
+          <kbd>Hold left click</kbd><span>Heavy attack · keep holding until the ring turns gold: weapon art</span>
+          <kbd>Right click / Q</kbd><span>Parry · hold to keep your guard up and steer it with the mouse · tap just before the blow for a perfect parry · during your own windup: feint</span>
+          <kbd>WASD</kbd><span>Move around your opponent</span>
+          <kbd>Shift · Space</kbd><span>Dash · roll</span>
+          <kbd>T</kbd><span>Acrobatic flip · toward them up close: vault over their head · click in the air to cut on landing</span>
+          <kbd>C · R · E</kbd><span>Crouch · jump · spin</span>
+          <kbd>X</kbd><span>Throw a shuriken (5 per round)</span>
+          <kbd>Wheel</kbd><span>Twirl your sword</span>
+          <kbd>G · Esc</kbd><span>Attack indicator · pause</span>
+        </div>
+      </details>
+      </div>
+    </section>
+  </div>
+
+  <div id="vs" hidden aria-live="polite">
+    <div class="vh vl"><div class="vp">You</div><div class="vk" id="vsK1"></div><div class="vw" id="vsW1"></div><div class="va" id="vsA1"></div></div>
+    <div class="vh vr"><div class="vp" id="vsP2">Opponent</div><div class="vk" id="vsK2"></div><div class="vw" id="vsW2"></div><div class="va" id="vsA2"></div></div>
+    <div class="vslash"></div><div class="vvs">VS</div>
+    <div class="varena" id="vsArena"></div>
   </div>
 
   <div id="pause" class="overlay" hidden>
@@ -5603,7 +5756,7 @@ function update(dt){
     if (foe.bot){ if (DOJO.on) dojoSensei(foe); else botThink(foe, brainFoe, DIFFS[S.diff]); }
   }
   else if (G.phase === 'menu'){
-    if (!CUST.on){ botThink(you, brainYou, DIFFS.normal); botThink(foe, brainFoe, DIFFS.normal); }
+    if (!CUST.on && (MENU.scr === 'online' || MENU.scr === 'settings')){ botThink(you, brainYou, DIFFS.normal); botThink(foe, brainFoe, DIFFS.normal); }
     else for (const f of [you, foe]){ f.moveIn.x = f.moveIn.z = 0; }
     if (G.demoReset && T > G.demoReset){ G.demoReset = 0; resetFighter(you, 0, 2.6); resetFighter(foe, 0, -2.6); if (decals.length > 60) clearDecals(); }
   } else {
@@ -6121,6 +6274,16 @@ function updateCamera(rdt, now){
     const F = dirTo(you, foe), Rt = { x:-F.z, z:F.x };
     camTarget.set(you.pos.x + F.x*4.1 - Rt.x*.3, 1.55, you.pos.z + F.z*4.1 - Rt.z*.3);
     lookTarget.set(you.pos.x + Rt.x*CUST_SIDE, 1.12, you.pos.z + Rt.z*CUST_SIDE);
+  } else if (G.phase === 'menu' && MENU.scr === 'title'){
+    // the hero shot: low, three-quarter, your duelist on the right third of the frame, breathing slowly
+    const sw = Math.sin(now*.00035), F = dirTo(you, foe);
+    camTarget.set(you.pos.x + F.x*4.5 + .9 + sw*.2, 1.25 + Math.sin(now*.0005)*.04, you.pos.z + F.z*4.5);
+    lookTarget.set(you.pos.x + 1.45, 1.08, you.pos.z + F.z*.2);
+  } else if (G.phase === 'menu' && (MENU.scr === 'select' || MENU.scr === 'vs')){
+    // face to face in profile, you on the left
+    const sw = Math.sin(now*.0003);
+    camTarget.set(sw*.35, 1.38, 5.6 + Math.cos(now*.00025)*.15);
+    lookTarget.set(0, 1.18, 0);
   } else if (G.phase === 'menu' || G.phase === 'result'){
     const a = now*.00007 + .6, mx = (you.pos.x + foe.pos.x)/2, mz = (you.pos.z + foe.pos.z)/2;
     camTarget.set(mx + Math.sin(a)*7.6, 2.5, mz + Math.cos(a)*7.6);
@@ -6412,15 +6575,16 @@ const timingEl = $('#timing');
 function setTiming(html){ if (G.phase === 'fight' || G.phase === 'roundEnd') timingEl.innerHTML = html; }
 
 /* ================= match flow ================= */
-function startMatch(){
+function startMatch(opts){
+  opts = opts || {};
   if (DOJO.on) dojoStop();
   if (!NET.on){ SIMF = [you, foe]; you.human = true; you.bot = false; foe.human = false; foe.bot = true; }
   you.lookCfg = S.look; foe.lookCfg = S.foeLook === 'random' ? randomLook() : null;
   setWeapon(you, S.pw);
   const keysW = Object.keys(WEAPONS);
-  setWeapon(foe, S.bw === 'random' ? keysW[Math.floor(Math.random()*keysW.length)] : S.bw);
+  setWeapon(foe, opts.bw || (S.bw === 'random' ? keysW[Math.floor(Math.random()*keysW.length)] : S.bw));
   $('#youW').textContent = you.w.name; $('#foeW').textContent = foe.w.name;
-  const akeys = Object.keys(ARENAS), ak = S.arena === 'random' ? akeys[Math.floor(Math.random()*akeys.length)] : S.arena;
+  const akeys = Object.keys(ARENAS), ak = opts.arena || (S.arena === 'random' ? akeys[Math.floor(Math.random()*akeys.length)] : S.arena);
   if (ak !== ARENA.key) buildArena(ak);
   you.wins = foe.wins = 0; you.stats = makeStats(); foe.stats = makeStats();
   clearDecals();
@@ -6645,10 +6809,12 @@ function toMenu(){
   $('#pause').hidden = true; $('#result').hidden = true; $('#hud').hidden = true;
   mountTune('#slotMenu'); $('#menu').hidden = false;
   you.lookCfg = S.look; foe.lookCfg = null;
+  MENU.busy = false; $('#vs').hidden = true;
   setWeapon(you, S.pw); setWeapon(foe, foe.wkey);
   resetFighter(you, 0, 2.6); resetFighter(foe, 0, -2.6);
   brainYou = newBrain(); brainFoe = newBrain();
   try { if (document.pointerLockElement) document.exitPointerLock(); } catch(e) {}
+  menuShow('title');
 }
 function setDesat(on){ G.desat = on; if (!composer) canvas.classList.toggle('desat', on); }
 function mountTune(sel){ $(sel).appendChild($('#tune')); }
@@ -6859,7 +7025,7 @@ function custOpen(){
   resetFighter(you, 0, 2.6); resetFighter(foe, 0, -2.6);
   you.lookCfg = S.look; setWeapon(you, S.pw); custRender();
 }
-function custClose(){ CUST.on = false; custEl.hidden = true; $('#menu').hidden = false; }
+function custClose(){ CUST.on = false; custEl.hidden = true; $('#menu').hidden = false; menuShow('title'); }
 $('#custBtn').addEventListener('click', custOpen);
 $('#dojoBtn').addEventListener('click', () => { Sfx.init(); const done = S.dojoDone || []; let i = DOJO_LESSONS.findIndex((_, k) => !done.includes(k)); dojoStart(i < 0 ? -1 : i); });
 $('#dojoPause').addEventListener('click', e => {
@@ -6894,22 +7060,144 @@ for (const ev of ['pointerup', 'pointercancel']) cStage.addEventListener(ev, () 
 window.addEventListener('keydown', e => { if (CUST.on && e.key === 'Escape'){ e.preventDefault(); custClose(); } });
 
 const meter = (label, v) => `<span class="m"><em>${label}</em><b style="--v:${clamp(v, .08, 1).toFixed(2)}"></b></span>`;
-$('#wgrid').innerHTML = Object.entries(WEAPONS).map(([k, w]) => `<button type="button" class="wcard" data-w="${k}" aria-pressed="${k === S.pw}">
-  <span class="wn">${w.name}</span><span class="wt">${w.tag}</span>${ARTS[k] ? `<span class="pm art">Art · ${ARTS[k].name}</span>` : ''}</button>`).join('');
-$('#wgrid').addEventListener('click', e => {
-  const b = e.target.closest('.wcard'); if (!b) return;
-  S.pw = b.dataset.w; save();
-  document.querySelectorAll('.wcard').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.w === S.pw)));
-  setWeapon(you, S.pw);
+/* ================= the menu =================
+   MENU.scr is the screen on show. On Title and Select the two duelists stand still for the camera (no demo fight);
+   on Online and Settings the demo fight runs behind the panel. FIGHT on Select spins the random choices like a
+   roulette, shows the VS card, then starts the match with exactly what the roulette landed on. */
+const MENU = { scr:'title', busy:false, idx:0, foeAuto:null };
+const W_KEYS = Object.keys(WEAPONS), A_KEYS = Object.keys(ARENAS);
+const W_ICON = {
+  katana:'<path d="M6 27l26-5" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><ellipse cx="33.5" cy="21.6" rx="2.2" ry="6.5" transform="rotate(-11 33.5 21.6)" fill="currentColor"/><path d="M36 21c26-3 52-8 78-17-22 12-50 18-78 21z" fill="currentColor"/>',
+  longsword:'<path d="M5 23h22" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><circle cx="5" cy="23" r="4" fill="currentColor"/><rect x="27" y="10" width="4" height="26" fill="currentColor"/><path d="M31 20h70l13 3-13 3H31z" fill="currentColor"/>',
+  zwei:'<path d="M3 22h24" stroke="currentColor" stroke-width="5.5" stroke-linecap="round"/><rect x="27" y="6" width="5" height="32" fill="currentColor"/><circle cx="29.5" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="29.5" cy="37" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M32 17q8 2 16 0t16 0 16 0 16 0l12 5-12 5q-8-2-16 0t-16 0-16 0-16 0z" fill="currentColor"/>',
+  dual:'<g transform="rotate(16 60 22)"><path d="M14 28l16-3" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M31 24c22-2 42-6 62-13-18 9-40 14-62 16z" fill="currentColor"/></g><g transform="rotate(-16 60 22)"><path d="M14 18l16 3" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M31 22c22 2 42 6 62 13-18-9-40-14-62-16z" fill="currentColor"/></g>',
+  rapier:'<path d="M6 22h18" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><circle cx="5" cy="22" r="3.5" fill="currentColor"/><path d="M26 12a10 10 0 0 1 0 20" fill="none" stroke="currentColor" stroke-width="3.5"/><path d="M10 15q12-9 20 2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M30 21h76l8 1-8 1H30z" fill="currentColor"/>',
+  spear:'<path d="M3 23h92" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/><path d="M93 19.5l8-3.5 15 7-15 7-8-3.5z" fill="currentColor"/><path d="M88 25q-4 9-9 11 4-6 3-11z" fill="var(--red)"/><rect x="40" y="20" width="10" height="6" fill="currentColor"/>',
+  kusari:'<path d="M4 34l20-14" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/><path d="M22 21q14-10 22-5-12-1-17 9z" fill="currentColor"/><g fill="none" stroke="currentColor" stroke-width="2">' + Array.from({ length:9 }, (_, i) => `<ellipse cx="${30 + i*8}" cy="${30 - Math.sin(i/8*Math.PI)*6}" rx="3.6" ry="2.2"/>`).join('') + '</g><circle cx="110" cy="30" r="5.5" fill="currentColor"/>',
+};
+const wIcon = k => `<svg viewBox="0 0 120 44" aria-hidden="true">${W_ICON[k] || ''}</svg>`;
+// four bars from the stats: reach, speed (windup), power (heavy damage), guard (parry angle, what it cannot parry)
+function wBars(w){
+  const c = v => Math.max(.06, Math.min(1, v));
+  return [['Reach', c((w.reach - 1.8)/1.6)], ['Speed', c(1 - (w.windL - 270)/330)], ['Power', c((w.dmgH - 14)/32)], ['Guard', c((w.tolBonus + 14)/26 - (w.noHeavyParry ? .25 : 0))], ['Feet', c((w.move - .78)/.38)]];
+}
+function bars(w){ return `<div class="stats4">${wBars(w).map(([n, v]) => `<div class="st4"><span>${n}</span><i style="--v:${v.toFixed(2)}"></i></div>`).join('')}</div>`; }
+function p1Render(){
+  const w = WEAPONS[S.pw], A = ARTS[S.pw];
+  $('#p1card').innerHTML = `<div class="pl"><span>1P · You</span><b></b></div><div class="pn">${w.name}</div><div class="pt">${w.tag}</div>${bars(w)}` +
+    (A ? `<div class="part"><span class="k">${A.kanji}</span><span><b>${A.name}</b>weapon art</span></div>` : '') + `<div class="pp">+ ${w.plus}</div><div class="pp neg">− ${w.minus}</div>`;
+}
+function p2Render(show){
+  const k = show || (S.bw === 'random' ? null : S.bw), w = k ? WEAPONS[k] : null;
+  $('#p2card').innerHTML = `<div class="pl"><span>2P · Bot</span><b></b></div>` +
+    `<div class="cyc"><button type="button" data-p2="-1" aria-label="Previous opponent">‹</button><div class="pn">${w ? w.name : '<span class="q">?</span>Random'}</div><button type="button" data-p2="1" aria-label="Next opponent">›</button></div>` +
+    `<div class="pt">${w ? w.tag : 'a different blade every match'}</div>` + (w ? bars(w) : bars({ reach:2.6, windL:430, dmgH:30, tolBonus:0, move:.97 }).replace(/--v:[\d.]+/g, '--v:.5')) +
+    `<div class="seg" id="p2diff" role="group" aria-label="Bot difficulty">${['easy', 'normal', 'hard'].map(d => `<button type="button" data-d="${d}" aria-pressed="${S.diff === d}">${d[0].toUpperCase() + d.slice(1)}</button>`).join('')}</div>`;
+}
+function rosterRender(){
+  $('#wgrid').innerHTML = W_KEYS.map(k => `<button type="button" class="rt" data-w="${k}" aria-pressed="${k === S.pw}" title="${WEAPONS[k].name} · ${WEAPONS[k].tag}">${wIcon(k)}<span class="rn">${WEAPONS[k].name}</span></button>`).join('');
+}
+const skyCss = k => { const C = COLOR_ARENA[k], sk = (C && C.paint && C.paint.sky) || (C && C.sky) || [0xB9B1A2, 0xE3D9C4, 0xB9B1A2]; return `linear-gradient(180deg,${hex6(sk[0])} 0%,${hex6(sk[1])} 62%,${hex6(sk[2])} 100%)`; };
+function arenasRender(hit){
+  $('#arenas').innerHTML = `<button type="button" class="ac rnd" data-a="random" aria-pressed="${S.arena === 'random'}">? Random</button>` +
+    A_KEYS.map(k => `<button type="button" class="ac${hit === k ? ' hit' : ''}" data-a="${k}" style="--sky:${skyCss(k)}" aria-pressed="${S.arena === k}">${ARENAS[k].name}</button>`).join('');
+  $('#arName').textContent = S.arena === 'random' ? 'chosen at random' : ARENAS[S.arena].line;
+}
+function heroRender(){ const w = WEAPONS[S.pw], A = ARTS[S.pw]; $('#heroN').textContent = w.name; $('#heroK').textContent = A ? A.kanji : ''; $('#heroA').textContent = A ? 'Art · ' + A.name : w.tag; }
+// where the two stand for each screen; the cameras are in updateCamera
+function menuStage(scr){
+  if (scr === 'title'){ resetFighter(you, 0, 2.6); resetFighter(foe, 0, -7.5); }
+  else if (scr === 'select' || scr === 'vs'){ resetFighter(you, -1.35, 0); resetFighter(foe, 1.35, 0); }
+  else { resetFighter(you, 0, 2.6); resetFighter(foe, 0, -2.6); brainYou = newBrain(); brainFoe = newBrain(); }
+  you.lookCfg = S.look; setWeapon(you, S.pw);
+  if (scr === 'select' && S.bw !== 'random') setWeapon(foe, S.bw);
+}
+function menuShow(scr){
+  if (MENU.busy) return;
+  MENU.scr = scr;
+  for (const [id, k] of [['#scrTitle', 'title'], ['#scrSelect', 'select'], ['#scrOnline', 'online'], ['#scrSettings', 'settings']]) $(id).hidden = k !== scr;
+  if (scr === 'settings') mountTune('#slotMenu');
+  if (G.phase === 'menu') menuStage(scr);
+  if (scr === 'title'){ heroRender(); setTimeout(() => { const b = document.querySelectorAll('#mlist .mi')[MENU.idx]; if (b && !$('#menu').hidden) b.focus({ preventScroll:true }); }, 30); }
+  if (scr === 'select'){ rosterRender(); p1Render(); p2Render(); arenasRender(); }
+}
+function pickWeapon(k){
+  if (!WEAPONS[k] || MENU.busy) return;
+  S.pw = k; save(); rosterRender(); p1Render(); heroRender();
+  setWeapon(you, k); twirlKick(you, 1); setTimeout(() => twirlKick(you, 1), 140);
+  Sfx.init(); Sfx.glint(false, -.3);
+}
+function cycleFoe(d){
+  const opts = ['random', ...W_KEYS]; let i = opts.indexOf(S.bw); i = (i + d + opts.length) % opts.length;
+  S.bw = opts[i]; save(); p2Render(); if (S.bw !== 'random'){ setWeapon(foe, S.bw); twirlKick(foe, -1); }
+}
+$('#mlist').addEventListener('click', e => { const b = e.target.closest('.mi'); if (b && b.dataset.go){ Sfx.init(); menuShow(b.dataset.go); } });
+$('#mlist').addEventListener('mouseover', e => { const b = e.target.closest('.mi'); if (!b) return; MENU.idx = [...document.querySelectorAll('#mlist .mi')].indexOf(b); document.querySelectorAll('#mlist .mi').forEach(x => x.classList.toggle('on', x === b)); });
+$('#menu').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b && !b.closest('#mlist')){ Sfx.init(); menuShow(b.dataset.go); } });
+$('#wgrid').addEventListener('click', e => { const b = e.target.closest('.rt'); if (b) pickWeapon(b.dataset.w); });
+$('#p2card').addEventListener('click', e => {
+  if (MENU.busy) return;
+  const c = e.target.closest('[data-p2]'); if (c) cycleFoe(+c.dataset.p2);
+  const d = e.target.closest('[data-d]'); if (d){ S.diff = d.dataset.d; save(); syncTune(); p2Render(); }
 });
-const bw = $('#bw');
-bw.innerHTML = `<option value="random">Random</option>` + Object.entries(WEAPONS).map(([k, w]) => `<option value="${k}">${w.name}</option>`).join('');
-bw.value = S.bw;
-const arSel = $('#ar');
-arSel.innerHTML = `<option value="random">Random</option>` + Object.entries(ARENAS).map(([k, a]) => `<option value="${k}">${a.name}</option>`).join('');
-arSel.value = S.arena;
-arSel.addEventListener('change', () => { S.arena = arSel.value; save(); if (S.arena !== 'random' && G.phase === 'menu') buildArena(S.arena); });
-bw.addEventListener('change', () => { S.bw = bw.value; save(); if (S.bw !== 'random' && G.phase === 'menu') setWeapon(foe, S.bw); });
+$('#arenas').addEventListener('click', e => {
+  const b = e.target.closest('.ac'); if (!b || MENU.busy) return;
+  S.arena = b.dataset.a; save(); arenasRender();
+  if (S.arena !== 'random' && S.arena !== ARENA.key) buildArena(S.arena);
+});
+// the roulette: steps that slow down and stop on the pick
+function roulette(n, show, done){
+  let i = 0; const tick = () => { show(i); i++; if (i < n) setTimeout(tick, 45 + Math.pow(i/n, 2.2)*260); else done(); }; tick();
+}
+function menuFight(){
+  if (MENU.busy) return;
+  Sfx.init(); requestLock();
+  MENU.busy = true; $('#startBtn').disabled = true;
+  const bwPick = S.bw === 'random' ? W_KEYS[Math.floor(Math.random()*W_KEYS.length)] : S.bw;
+  const arPick = S.arena === 'random' ? A_KEYS[Math.floor(Math.random()*A_KEYS.length)] : S.arena;
+  const step2 = () => {
+    if (S.arena !== 'random'){ vsCard(bwPick, arPick); return; }
+    const N = 15 + A_KEYS.indexOf(arPick) - (15 % A_KEYS.length);
+    roulette(N, i => { const k = A_KEYS[i % A_KEYS.length]; document.querySelectorAll('#arenas .ac').forEach(c => c.classList.toggle('hit', c.dataset.a === k)); $('#arName').textContent = ARENAS[k].name; Sfx.tick && Sfx.tick(); },
+      () => { arenasRender(arPick); $('#arName').textContent = ARENAS[arPick].name + ' · ' + ARENAS[arPick].line; Sfx.glint(true, 0); setTimeout(() => vsCard(bwPick, arPick), 380); });
+  };
+  if (S.bw === 'random'){
+    $('#p2card').classList.add('spin');
+    const N = 16 + W_KEYS.indexOf(bwPick) - (16 % W_KEYS.length);
+    roulette(N, i => { p2Render(W_KEYS[i % W_KEYS.length]); Sfx.tick && Sfx.tick(); },
+      () => { $('#p2card').classList.remove('spin'); p2Render(bwPick); setWeapon(foe, bwPick); twirlKick(foe, -1); Sfx.glint(true, .3); setTimeout(step2, 380); });
+  } else step2();
+}
+function vsCard(bwPick, arPick){
+  const w1 = WEAPONS[S.pw], w2 = WEAPONS[bwPick], A1 = ARTS[S.pw], A2 = ARTS[bwPick];
+  $('#vsK1').textContent = A1 ? A1.kanji : ''; $('#vsW1').textContent = w1.name; $('#vsA1').textContent = A1 ? A1.name : w1.tag;
+  $('#vsK2').textContent = A2 ? A2.kanji : ''; $('#vsW2').textContent = w2.name; $('#vsA2').textContent = (A2 ? A2.name : w2.tag);
+  $('#vsP2').textContent = 'Bot · ' + S.diff;
+  $('#vsArena').innerHTML = `${ARENAS[arPick].name}<small>${ARENAS[arPick].line}</small>`;
+  const vs = $('#vs'); vs.hidden = false; vs.classList.remove('in', 'out'); void vs.offsetWidth; vs.classList.add('in');
+  Sfx.drum && Sfx.drum(1); setTimeout(() => { Sfx.clang && Sfx.clang(1.2, 0, 0); }, 330);
+  $('#menu').hidden = true; MENU.scr = 'vs';
+  if (arPick !== ARENA.key) setTimeout(() => buildArena(arPick), 60);
+  setTimeout(() => {
+    vs.classList.add('out');
+    MENU.busy = false; $('#startBtn').disabled = false;
+    startMatch({ bw:bwPick, arena:arPick }); lastNow = performance.now();
+    setTimeout(() => { vs.hidden = true; vs.classList.remove('in', 'out'); }, 400);
+  }, 2100);
+}
+// keys: the title list and the select screen
+window.addEventListener('keydown', e => {
+  if (G.phase !== 'menu' || CUST.on || $('#menu').hidden || MENU.busy) return;
+  const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT')) return;
+  if (MENU.scr === 'title'){
+    const items = [...document.querySelectorAll('#mlist .mi')];
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){ e.preventDefault(); MENU.idx = (MENU.idx + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length; items.forEach((x, i) => x.classList.toggle('on', i === MENU.idx)); items[MENU.idx].focus({ preventScroll:true }); }
+  } else if (MENU.scr === 'select'){
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft'){ e.preventDefault(); const i = W_KEYS.indexOf(S.pw); pickWeapon(W_KEYS[(i + (e.key === 'ArrowRight' ? 1 : -1) + W_KEYS.length) % W_KEYS.length]); }
+    else if (e.key === 'Enter' && !(t && t.closest && t.closest('button'))){ e.preventDefault(); menuFight(); }
+    else if (e.key === 'Escape'){ e.preventDefault(); menuShow('title'); }
+  } else if (e.key === 'Escape'){ e.preventDefault(); menuShow('title'); }
+});
 const RANGES = [
   ['window', v => `${v} ms`], ['tol', v => `±${v}°`], ['sweep', v => +v ? `${v} ms` : 'off'], ['whiff', v => `${v} ms`], ['speed', v => `${(+v).toFixed(2)}×`], ['sens', v => `${(+v).toFixed(1)}×`], ['vol', v => `${Math.round(v*100)}%`],
 ];
@@ -6931,7 +7219,8 @@ function syncTune(){
   document.querySelectorAll('#t-style button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.s === S.style)));
 }
 syncTune();
-$('#startBtn').addEventListener('click', () => { Sfx.init(); $('#menu').hidden = true; startMatch(); requestLock(); lastNow = performance.now(); });
+menuShow('title');
+$('#startBtn').addEventListener('click', menuFight);
 $('#resumeBtn').addEventListener('click', () => { Sfx.init(); resume(); });
 $('#quitBtn').addEventListener('click', toMenu);
 $('#againBtn').addEventListener('click', () => {
