@@ -7525,7 +7525,7 @@ function rematchCheck(){
 /* one step of the simulation over `ms` of real time; returns how far the visuals should move */
 /* The duel runs a fifth faster than the wall clock: feet, rolls, flips, blows and bodies all together. The parry window
    and the bots' reaction times are stretched by the same factor, so in real time they stay what they were. */
-const GAME_SPEED = 1.2;
+const GAME_SPEED = 1;   // was 1.2 for a while; back to the original pace
 const WIN = () => S.window*GAME_SPEED;
 function simAdvance(ms){
   let scale = (G.phase === 'fight' || G.phase === 'roundEnd') ? GAME_SPEED : 1;
