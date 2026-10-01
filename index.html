@@ -393,7 +393,9 @@ details.ctrls[open] summary::before{content:"– "}
         <label class="tg"><input type="checkbox" id="t-slow"> Slow motion on parries</label>
         <label class="tg"><input type="checkbox" id="t-blood"> Blood</label>
         <label class="tg"><input type="checkbox" id="t-voice"> Character voices</label>
-        <label class="tg"><input type="checkbox" id="t-color"> Full color (off: ink and red only)</label>
+        <div class="tr"><div class="tl"><span>Look</span></div>
+          <div class="seg" id="t-style" role="group" aria-label="Look"><button type="button" data-s="ink">Ink</button><button type="button" data-s="color">Color</button><button type="button" data-s="painted">Painted</button></div>
+        </div>
         <button type="button" class="linkbtn" id="t-reset">Reset to defaults</button>
       </aside>
     </div>
@@ -475,12 +477,15 @@ const STATE_TR = { flip:'flip', throw:'shuriken', art:'art', artRecover:'after a
 const VULN = new Set(['parryRecover','stagger','broken','feintRecover','recovery','spinRecover','land','artRecover']);
 
 /* ================= settings ================= */
-const DEFAULTS = { window:160, tol:45, sweep:100, whiff:420, speed:1, sens:1, vol:.7, diff:'normal', indicator:true, slowmo:true, blood:true, pw:'longsword', bw:'random', arena:'random', look:null, foeLook:'auto', voices:true, color:true, dojoDone:[] };
+const DEFAULTS = { window:160, tol:45, sweep:100, whiff:420, speed:1, sens:1, vol:.7, diff:'normal', indicator:true, slowmo:true, blood:true, pw:'longsword', bw:'random', arena:'random', look:null, foeLook:'auto', voices:true, color:true, style:'painted', dojoDone:[] };
 const S = Object.assign({}, DEFAULTS);
 try { const raw = localStorage.getItem('aci-duellosu-v1'); if (raw) Object.assign(S, JSON.parse(raw)); } catch(e) {}
 if (!WEAPONS[S.pw]) S.pw = 'longsword';
 if (S.bw !== 'random' && !WEAPONS[S.bw]) S.bw = 'random';
 if (!DIFFS[S.diff]) S.diff = 'normal';
+// the look: ink, colour or painted (older saves only knew colour on/off)
+if (!['ink', 'color', 'painted'].includes(S.style)) S.style = S.color === false ? 'ink' : DEFAULTS.style;
+S.color = S.style !== 'ink';
 // the timing rules, speed, sensitivity and volume are fixed at their defaults; the player only sets difficulty and the toggles
 for (const k of ['window', 'tol', 'sweep', 'whiff', 'speed', 'sens', 'vol']) S[k] = DEFAULTS[k];
 if (S.foeLook !== 'random') S.foeLook = 'auto';
@@ -519,11 +524,11 @@ const camLook = new THREE.Vector3(0,1.1,0);
 /* post: paper-and-ink grade with fibre grain. Falls back to plain rendering if the passes didn't load. */
 let composer = null, gradePass = null;
 const InkShader = {
-  uniforms: { tDiffuse:{ value:null }, tND:{ value:null }, uTime:{ value:0 }, uSat:{ value:1 }, uColor:{ value:0 }, uImpact:{ value:0 }, uRes:{ value:new THREE.Vector2(1, 1) },
+  uniforms: { tDiffuse:{ value:null }, tND:{ value:null }, uTime:{ value:0 }, uSat:{ value:1 }, uColor:{ value:0 }, uPaint:{ value:0 }, uImpact:{ value:0 }, uRes:{ value:new THREE.Vector2(1, 1) },
     uFar:{ value:220 }, uDof:{ value:0 }, uFocus:{ value:5 }, uEdges:{ value:1 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
   fragmentShader: `
-    uniform sampler2D tDiffuse, tND; uniform float uTime, uSat, uColor, uImpact, uFar, uDof, uFocus, uEdges; uniform vec2 uRes; varying vec2 vUv;
+    uniform sampler2D tDiffuse, tND; uniform float uTime, uSat, uColor, uPaint, uImpact, uFar, uDof, uFocus, uEdges; uniform vec2 uRes; varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)))*43758.5453); }
     float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0 - 2.0*f);
       return mix(mix(hash(i), hash(i + vec2(1.0,0.0)), f.x), mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), f.x), f.y); }
@@ -540,14 +545,47 @@ const InkShader = {
       }
       return e;
     }
+    /* painted: a Kuwahara filter turns the render into flat, brushed patches of colour (the mean of the calmest of four
+       neighbourhoods), the way a painter lays in a surface with a few strokes instead of a gradient */
+    vec3 kuwa(vec2 uv){
+      vec3 m0 = vec3(0.0), m1 = vec3(0.0), m2 = vec3(0.0), m3 = vec3(0.0), s0 = vec3(0.0), s1 = vec3(0.0), s2 = vec3(0.0), s3 = vec3(0.0);
+      vec2 st = 1.5/uRes;
+      for (int j=-3;j<=3;j++) for (int i=-3;i<=3;i++){
+        vec3 c = texture2D(tDiffuse, uv + vec2(float(i), float(j))*st).rgb, c2 = c*c;
+        if (i <= 0 && j <= 0){ m0 += c; s0 += c2; }
+        if (i >= 0 && j <= 0){ m1 += c; s1 += c2; }
+        if (i <= 0 && j >= 0){ m2 += c; s2 += c2; }
+        if (i >= 0 && j >= 0){ m3 += c; s3 += c2; }
+      }
+      m0 /= 16.0; m1 /= 16.0; m2 /= 16.0; m3 /= 16.0;
+      vec3 v0 = s0/16.0 - m0*m0, v1 = s1/16.0 - m1*m1, v2 = s2/16.0 - m2*m2, v3 = s3/16.0 - m3*m3;
+      float q0 = v0.r + v0.g + v0.b, q1 = v1.r + v1.g + v1.b, q2 = v2.r + v2.g + v2.b, q3 = v3.r + v3.g + v3.b;
+      vec3 r = m0; float q = q0;
+      if (q1 < q){ q = q1; r = m1; } if (q2 < q){ q = q2; r = m2; } if (q3 < q){ r = m3; }
+      return r;
+    }
+    // warm light, cool shadow: split toning, a little more saturation and an S-curve, like an illustrated cel
+    vec3 grade(vec3 c){
+      float l = dot(c, vec3(.299, .587, .114));
+      c = mix(vec3(l), c, 1.18);
+      vec3 sh = vec3(.76, .86, 1.06), hi = vec3(1.05, 1.0, .9);
+      c *= mix(sh, hi, smoothstep(.12, .78, l));
+      c = c*c*(3.0 - 2.0*c)*.3 + c*.7;
+      c = mix(c, c*.92, smoothstep(.75, 1.0, l));                      // keep the brightest ground from burning out
+      return clamp(c, 0.0, 1.0);
+    }
     void main(){
       vec2 px = vUv*uRes;
       float bt = floor(uTime*8.0);                                  // the drawing boils eight times a second
       vec2 wob = (vec2(noise(px*.012 + bt*1.7), noise(px*.012 + 31.0 + bt*1.3)) - .5)*1.4/uRes;
-      vec2 uv = vUv + wob;
-      // a painterly smear along a slowly turning flow field
-      float fa = noise(px*.0045)*6.2832; vec2 fd = vec2(cos(fa), sin(fa))*1.7/uRes;
-      vec3 c = (texture2D(tDiffuse, uv).rgb*2.0 + texture2D(tDiffuse, uv + fd).rgb + texture2D(tDiffuse, uv - fd).rgb)*.25;
+      vec2 uv = vUv + wob*(1.0 - uPaint);
+      vec3 c;
+      if (uPaint > .5) c = kuwa(vUv);
+      else {
+        // a painterly smear along a slowly turning flow field
+        float fa = noise(px*.0045)*6.2832; vec2 fd = vec2(cos(fa), sin(fa))*1.7/uRes;
+        c = (texture2D(tDiffuse, uv).rgb*2.0 + texture2D(tDiffuse, uv + fd).rgb + texture2D(tDiffuse, uv - fd).rgb)*.25;
+      }
       float dC = dep(vUv);
       // depth of field for the cinematic beats
       if (uDof > .01){
@@ -578,17 +616,32 @@ const InkShader = {
         col = mix(col, clamp(pc, 0.0, 1.0), uColor);
         keep = max(keep, uColor);
       }
+      // painted: graded colour straight from the brushed patches, and a glow that blooms out of the brightest warm light
+      vec3 lineC = ink;
+      if (uPaint > .001){
+        vec3 pg = grade(c);
+        vec3 glow = vec3(0.0);
+        for (int i=0;i<12;i++){
+          float a = float(i)*.5236, rr = (i < 6 ? 9.0 : 19.0);
+          vec3 t = texture2D(tDiffuse, vUv + vec2(cos(a + rr), sin(a + rr))*rr/uRes).rgb;
+          float ts = max(t.r, max(t.g, t.b)) - min(t.r, min(t.g, t.b)); glow += max(t - .8, 0.0)*(.4 + ts*1.6);   // warm, saturated light blooms; pale stone does not
+        }
+        pg += glow*vec3(1.0, .82, .55)*.22;
+        col = mix(col, clamp(pg, 0.0, 1.0), uPaint);
+        keep = max(keep, uPaint);
+        lineC = mix(ink, vec3(.2, .11, .07), uPaint);
+      }
       // brush contours: width wanders along the line, dry streaks break it up, far lines fade like ink thinned with water
-      float w = mix(1.2, 3.3, noise(px*.017 + bt*.41));
-      float e = edges(vUv + wob*.6, w)*uEdges;
-      e *= .78 + .22*noise(vec2(px.x*.07, px.y*.55) + bt*3.1);
+      float w = mix(mix(1.2, 3.3, noise(px*.017 + bt*.41)), mix(1.1, 1.7, noise(px*.02)), uPaint);
+      float e = edges(vUv + wob*.6*(1.0 - uPaint), w)*uEdges;
+      e *= mix(.78 + .22*noise(vec2(px.x*.07, px.y*.55) + bt*3.1), .85, uPaint);
       e *= 1.0 - smoothstep(26.0, 80.0, dC*uFar);
-      col = mix(col, ink, clamp(e, 0.0, 1.0)*.92);
+      col = mix(col, lineC, clamp(e, 0.0, 1.0)*mix(.92, .8, uPaint));
       float fib = noise(px*vec2(.018, .11))*.55 + noise(px*.07)*.45;
-      col *= .955 + fib*.075;
-      col += (hash(floor(px) + uTime) - .5)*.028;
+      col *= .955 + fib*.075*(1.0 - .7*uPaint) + .021*uPaint;
+      col += (hash(floor(px) + uTime) - .5)*.028*(1.0 - .6*uPaint);
       vec2 d = vUv - .5;
-      col = mix(col, ink, smoothstep(.5, 1.0, length(d*vec2(1.15, 1.0)))*.28);
+      col = mix(col, mix(ink, vec3(.25, .12, .06), uPaint), smoothstep(.5, 1.0, length(d*vec2(1.15, 1.0)))*mix(.28, .34, uPaint));
       if (uImpact > .5){ float li = dot(col, vec3(.299, .587, .114)); col = mix(li > .45 ? ink : paper, col, smoothstep(.17, .42, sat)); }
       gl_FragColor = vec4(col, 1.0);
     }`
@@ -976,6 +1029,7 @@ function arenaAvlu(){
   const toriiMat = toon(0x1E1B18);
   prop(new THREE.CylinderGeometry(.42, .5, 9.5, 12), toriiMat, -4.6, 4.15, -27); prop(new THREE.CylinderGeometry(.42, .5, 9.5, 12), toriiMat, 4.6, 4.15, -27);
   prop(new THREE.BoxGeometry(12.5, .55, .7), toriiMat, 0, 7.2, -27); prop(new THREE.BoxGeometry(15, .6, 1.1), toriiMat, 0, 8.9, -27); prop(new THREE.BoxGeometry(.6, 1.2, .5), toriiMat, 0, 8.05, -27);
+  skyline([['castle', .12, 1], ['pagoda', .46, .9], ['gate', .7, .7], ['pagoda', .88, .7]], '#B3AA98');
   skyDisc(RED, 9, new THREE.Vector3(-46, 13, -66), .95);
   cloudLayer(90, 26, 'rgba(236,226,206,1)', .7, .97);
   backdrop(layerTex((g, W, H) => fillRidge(g, ridgeLine(W, 300, 70, 1.1, .8), H, '#CFC6B4', .6)), 74, 30, 12.4, .9, -4);
@@ -1036,6 +1090,7 @@ function arenaOtlak(){
   const marker = prop(new THREE.BoxGeometry(.35, 1.3, .2), toon(0x5A554D), 6.5, .65, -13); marker.rotation.y = .4; marker.rotation.z = .05;
   hokora(8.4, -13.8, .5);
   birds(5);
+  skyline([['tower', .2, .9], ['ruin', .52, 1], ['tower', .8, .7]], '#B2AA98');
   skyDisc(GOLD, 9, new THREE.Vector3(-60, 5, -30), .97);
   cloudLayer(88, 22, 'rgba(120,114,104,1)', .9, .97, true);
   cloudLayer(80, 17, 'rgba(170,164,152,1)', .7, .95);
@@ -1070,6 +1125,7 @@ function arenaKar(){
   for (let i=0;i<10;i++){ const a = rand(0, TAU), r = rand(18, 30); if (Math.abs(Math.cos(a)*r) < 11 && Math.sin(a) < -.5) continue; pineTree(Math.cos(a)*r, Math.sin(a)*r, rand(5, 9), true); }
   for (let i=0;i<9;i++){ const a = rand(0, TAU), r = rand(13.2, 17); if (Math.sin(a) < -.55 && Math.abs(Math.cos(a)*r) < 9) continue; snowRock(Math.cos(a)*r, Math.sin(a)*r, rand(.45, 1.1), -.6); }
   birds(4);
+  skyline([['pagoda', .3, 1.1], ['gate', .62, .8], ['pagoda', .9, .8]], '#5E5A52');
   skyDisc(0xF4EFE2, 5.5, new THREE.Vector3(30, 26, -60), .97);
   cloudLayer(88, 24, 'rgba(90,86,80,1)', .8, .97, true);
   backdrop(layerTex((g, W, H) => fillRidge(g, ridgeLine(W, 300, 70, 2.2, .8), H, '#57534C', .6)), 74, 30, 12.4, .9, -4);
@@ -1124,6 +1180,7 @@ function arenaKopru(){
       pud.rotation.x = -Math.PI/2; pud.position.y = .012; arenaG.add(pud); AR.puddle = pud;
     } catch(e) {}
   }
+  skyline([['pagoda', .25, 1], ['tower', .6, .8], ['castle', .85, .9]], '#7A746A');
   cloudLayer(88, 22, 'rgba(40,38,34,1)', 1, .97, true);
   cloudLayer(78, 17, 'rgba(70,66,60,1)', .9, .94, true);
   backdrop(layerTex((g, W, H) => { const p = ridgeLine(W, 250, 110, 6.1, .55); fillRidge(g, p, H, '#6E685E', .7); for (let i=0;i<18;i++){ const x = rand(0, W), q = p[Math.floor(x/4)]; paintPine(g, x, q[1] + 8, rand(.4, .7), '#504A41'); } }), 72, 34, 12, .9, -4);
@@ -1208,6 +1265,7 @@ function arenaGul(){
   for (const [x, z] of [[-2, -1], [2, -1], [-2, 1], [2, 1]]) prop(new THREE.BoxGeometry(.2, 3, .2), capM, x, 1.5, z, perg);
   for (let i=0;i<7;i++) prop(new THREE.BoxGeometry(.12, .12, 2.6), capM, -1.8 + i*.6, 3.05, 0, perg);
   for (let i=0;i<40;i++){ const r = prop(new THREE.IcosahedronGeometry(.14, 0), roseM, rand(-2, 2), rand(2.6, 3.2), rand(-1.2, 1.2), perg); }
+  skyline([['castle', .3, 1.1], ['pagoda', .65, .8], ['gate', .92, .7]], '#B0A898');
   skyDisc(0xE9E1D2, 6, new THREE.Vector3(-40, 14, 60), .97);
   cloudLayer(88, 22, 'rgba(100,96,90,1)', 1, .97, true);
   cloudLayer(78, 16, 'rgba(150,145,136,1)', .8, .93);
@@ -1401,33 +1459,88 @@ function placeBlob(f){
   const s = (1 + h*.35)*(f.state === 'dead' ? 1.5 : 1); b.scale.set(s, s, 1);
   b.material.opacity = clamp(1 - h*.7, .15, 1)*(f.state === 'dead' ? .8 : 1);
 }
+/* ---- painted: motes of light drifting through the air (dust in the sun, frost in the moonlight) ---- */
+const MOTES = (() => {
+  const N = 160, pos = new Float32Array(N*3), base = [];
+  for (let i=0;i<N;i++){ const a = Math.random()*TAU, r = Math.sqrt(Math.random())*15; base.push({ x:Math.cos(a)*r, z:Math.sin(a)*r, y:Math.random()*5.5, sp:.25 + Math.random()*.6, ph:Math.random()*TAU }); }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size:.075, map:TEX_DROP_SOFT(), transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, color:0xFFD890, opacity:.85 }));
+  pts.frustumCulled = false; pts.visible = false; pts.userData.noEdge = true; scene.add(pts);
+  return { pts, pos, base, N };
+})();
+function TEX_DROP_SOFT(){ return canvasTex(32, 32, (g) => { const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.35, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 32, 32); }); }
+function updateMotes(now){
+  const on = S.style === 'painted' && G.phase !== 'result';
+  MOTES.pts.visible = on; if (!on) return;
+  const t = now*.001, P = MOTES.pos, wx = WIND.x*(.15 + WIND.gustNow*.5), wz = WIND.z*(.15 + WIND.gustNow*.5);
+  for (let i=0;i<MOTES.N;i++){ const b = MOTES.base[i], y = (b.y + t*b.sp*.25) % 5.5;
+    P[i*3] = b.x + Math.sin(t*b.sp + b.ph)*.7 + wx*((t*b.sp) % 6); P[i*3+1] = y + .15; P[i*3+2] = b.z + Math.cos(t*b.sp*.8 + b.ph)*.7 + wz*((t*b.sp) % 6); }
+  MOTES.pts.geometry.attributes.position.needsUpdate = true;
+}
+/* ---- distant architecture: a painted band of silhouettes on the horizon, behind the near hills ---- */
+function skyline(items, color){
+  backdrop(layerTex((g, W, H) => {
+    g.fillStyle = color; g.strokeStyle = 'rgba(21,19,15,.25)'; g.lineWidth = 1.2;
+    const roof = (x, y, w, h, curl) => { g.beginPath(); g.moveTo(x - w/2 - curl, y + curl*.3); g.quadraticCurveTo(x - w/2 + w*.08, y, x - w*.32, y - h); g.lineTo(x + w*.32, y - h); g.quadraticCurveTo(x + w/2 - w*.08, y, x + w/2 + curl, y + curl*.3); g.closePath(); g.fill(); };
+    for (const [kind, fx, s] of items){
+      const x = fx*W, base = 410; let y = base;
+      if (kind === 'pagoda'){
+        g.fillRect(x - 3*s, base - 230*s, 6*s, 40*s);                                  // the spire
+        for (let k=0;k<5;k++){ const w = (78 - k*11)*s, bh = 26*s; g.fillRect(x - w*.32, y - bh, w*.64, bh); roof(x, y - bh, w, 12*s, 6*s); y -= bh + 12*s; }
+      } else if (kind === 'castle'){
+        g.beginPath(); g.moveTo(x - 90*s, base); g.lineTo(x - 70*s, base - 50*s); g.lineTo(x + 70*s, base - 50*s); g.lineTo(x + 90*s, base); g.fill();   // stone base
+        y = base - 50*s;
+        for (let k=0;k<4;k++){ const w = (130 - k*26)*s, bh = 30*s; g.fillRect(x - w*.36, y - bh, w*.72, bh); roof(x, y - bh, w, 14*s, 8*s); y -= bh + 14*s; }
+        g.fillRect(x - 2*s, y - 18*s, 4*s, 18*s);
+      } else if (kind === 'tower'){
+        g.fillRect(x - 9*s, base - 150*s, 18*s, 150*s); roof(x, base - 150*s, 46*s, 16*s, 6*s);
+        for (const sx of [-1, 1]) g.fillRect(x + sx*12*s - 2*s, base - 150*s, 4*s, 150*s);
+      } else if (kind === 'gate'){
+        for (const sx of [-1, 1]) g.fillRect(x + sx*34*s - 4*s, base - 90*s, 8*s, 90*s);
+        g.fillRect(x - 50*s, base - 86*s, 100*s, 7*s); roof(x, base - 92*s, 120*s, 10*s, 10*s);
+      } else if (kind === 'ruin'){
+        g.fillRect(x - 40*s, base - 70*s, 14*s, 70*s); g.fillRect(x + 10*s, base - 110*s, 12*s, 110*s); g.fillRect(x - 40*s, base - 74*s, 50*s, 8*s);
+        g.beginPath(); g.moveTo(x + 22*s, base - 110*s); g.lineTo(x + 36*s, base - 80*s); g.lineTo(x + 22*s, base - 70*s); g.fill();
+      }
+    }
+  }), 68, 30, 12.4, .88, -4);
+}
 /* ---- full colour ----
    The arenas are built in paper and ink tones. In colour mode each one gets its own light and palette: the sky, fog and
    lights change, every solid material is recoloured by its original tone (hex), the painted textures are tinted (the ground
    and the backdrop layers, by distance). Original colours are kept on the material so switching back is exact. */
 const COLOR_ARENA = {
-  avlu:  { sky:[0x8FB2D4, 0xF3D5A4, 0xB9A07C], bg:0xEBD2A6, fog:0xE4C9A0, hemi:[0xFFF0D8, 0x8A7658], sun:0xFFE0B0, ground:0xDCC39A, rays:0xFFE9BE,
+  avlu: { paint:{ ground:0xD2BC98, sky:[0x2C6A9E, 0xF6C27A, 0xC08A5A], bg:0xF0C890, fog:0xE8B983, sun:0xFFC98A, hemi:[0xFFE2B8, 0x56688A], motes:0xFFD890, lay:{ '-6':0xFFDDB0, '-5':0xFFE4C0, '-4':0x7090B8, '-3':0x5E8A70, '-2':0x4C6E3E } },
+          sky:[0x8FB2D4, 0xF3D5A4, 0xB9A07C], bg:0xEBD2A6, fog:0xE4C9A0, hemi:[0xFFF0D8, 0x8A7658], sun:0xFFE0B0, ground:0xDCC39A, rays:0xFFE9BE,
            lay:{ '-6':0xF7E4C2, '-5':0xF1DDBA, '-4':0x9DB0C6, '-3':0x8C9E86, '-2':0x6F7F58 },
            hex:{ '8a8378':0x9E8668, '6a645a':0x857A6C, '8e877b':0x9C8F7A, '2a2723':0x3E2B20, '1e1b18':0xA3321F } },
-  otlak: { sky:[0x7FA6CE, 0xE4EAE6, 0xA4AC80], bg:0xD7E1E6, fog:0xD2DAD2, hemi:[0xF0F4F4, 0x7A7A55], sun:0xFFEBC2, ground:0xA4AC70, rays:0xFFF0CF, grass:0xCDBE82,
+  otlak: { paint:{ sky:[0x337CC4, 0xFBE3A8, 0xB8A060], bg:0xF6DDA6, fog:0xF0D9A4, sun:0xFFD27A, hemi:[0xFFF0C8, 0x4E6A5A], motes:0xFFE2A0, grass:0xD6B46C, lay:{ '-6':0xFFF0D2, '-5':0xFFF4DC, '-4':0x8AA8CA, '-3':0x78997E, '-2':0x5C7C4C } },
+          sky:[0x7FA6CE, 0xE4EAE6, 0xA4AC80], bg:0xD7E1E6, fog:0xD2DAD2, hemi:[0xF0F4F4, 0x7A7A55], sun:0xFFEBC2, ground:0xA4AC70, rays:0xFFF0CF, grass:0xCDBE82,
            lay:{ '-6':0xD9E6F0, '-5':0xE6EDF0, '-4':0xA8BBCC, '-3':0x8EA597, '-2':0x6D8462 },
            hex:{ '2a2622':0x3E2D22, '3a3730':0x3F5B35, '77706a':0x8E877C, '5a554d':0x654D38 } },
-  kar:   { sky:[0x0C1428, 0x2E3E66, 0x1E2A44], bg:0x1D2944, fog:0x263352, hemi:[0x9AAED8, 0x3A4058], sun:0xBCCBF0, ground:0xDFE6F0, rays:0xC8D6F5,
+  kar: { paint:{ sky:[0x0A0E2C, 0x3D4FA0, 0x1E2A52], bg:0x24306A, fog:0x2A3568, sun:0xA4BCFF, hemi:[0x9AB0F2, 0x2A2F58], motes:0xB4C8FF, lay:{ '-6':0x4C5C9E, '-5':0x52629E, '-4':0x2E3C7A, '-3':0x253266 } },
+          sky:[0x0C1428, 0x2E3E66, 0x1E2A44], bg:0x1D2944, fog:0x263352, hemi:[0x9AAED8, 0x3A4058], sun:0xBCCBF0, ground:0xDFE6F0, rays:0xC8D6F5,
            lay:{ '-6':0x61729C, '-5':0x2A3860, '-4':0x33436C, '-3':0x28375A },
            hex:{ '7a746a':0x7C7E8A, 'f3f0e8':0xE9EFF7, '8e877b':0x8E8E98, '2a2723':0x2B2B35, 'f6f3ec':0xF1F5FB, '6e685e':0x7A6A58,
                  '2e2a25':0x9A2E1F, '1e1b18':0x2C313E, '3a3631':0x5C4A38, '2a2622':0x3D2E24, '3a3834':0x2E4B3B, 'f4f1ea':0xEEF3FA, 'f4efe2':0xF3F0DE } },
-  kopru: { sky:[0x232C36, 0x5A6773, 0x33414A], bg:0x3C4956, fog:0x43505B, hemi:[0x8E9EB2, 0x39392F], sun:0xB2BFCE, ground:0x3E5C68, rays:0xDDE5EE,
+  kopru: { paint:{ sky:[0x181E3E, 0x5C4E80, 0x2A3348], bg:0x3E4268, fog:0x3E4466, sun:0xBAC4FF, hemi:[0x8E96CA, 0x2E2A3C], motes:0xC4B8FF, ground:0x2C4C66, lay:{ '-6':0x5E5A8A, '-5':0x64608E, '-4':0x4A4E74, '-3':0x383E5C } },
+          sky:[0x232C36, 0x5A6773, 0x33414A], bg:0x3C4956, fog:0x43505B, hemi:[0x8E9EB2, 0x39392F], sun:0xB2BFCE, ground:0x3E5C68, rays:0xDDE5EE,
            lay:{ '-6':0x8C9DB0, '-5':0x4A5866, '-4':0x55646E, '-3':0x44545A },
            hex:{ '57504a':0x6B5541, '6f665a':0x7E6549, '2c2824':0x3C2B1F } },
-  bambu: { sky:[0xA9C7C9, 0xEEF0CF, 0xB7B58A], bg:0xE2E8C6, fog:0xD4DDB6, hemi:[0xF4F7E4, 0x6E7550], sun:0xFFE6B4, ground:0xA89E6E, rays:0xFFF3C8, bamboo:0x92B462, leaves:0x7FA24C,
+  bambu: { paint:{ sky:[0x5FAE9C, 0xF4E7A8, 0x9A9A5A], bg:0xE6EAB4, fog:0xDDE6B0, sun:0xFFE09A, hemi:[0xF0F7D0, 0x4A6A3A], motes:0xE8FFB0, bamboo:0x7CC25A, leaves:0x66A846, lay:{ '-6':0xF2F6D8, '-5':0xF4F8E0, '-4':0xA4CC88, '-3':0x84B46C, '-2':0x5C944E } },
+          sky:[0xA9C7C9, 0xEEF0CF, 0xB7B58A], bg:0xE2E8C6, fog:0xD4DDB6, hemi:[0xF4F7E4, 0x6E7550], sun:0xFFE6B4, ground:0xA89E6E, rays:0xFFF3C8, bamboo:0x92B462, leaves:0x7FA24C,
            lay:{ '-6':0xEEF1D8, '-5':0xE8EDD2, '-4':0xB6C99C, '-3':0x98B381, '-2':0x7A9B63 },
            hex:{} },
-  gul:   { sky:[0x9AA0C4, 0xF0CFC0, 0xC1A797], bg:0xDCC4C4, fog:0xD4BDB7, hemi:[0xFFEDE6, 0x7D7064], sun:0xF6E4CE, ground:0xC7B394, rays:0xFFE8D6, grass:0x8DA160,
+  gul: { paint:{ ground:0xC4AE92, sky:[0x5A4AA0, 0xFFB48C, 0xC07A70], bg:0xF6C2A6, fog:0xF0BCA8, sun:0xFFC4A0, hemi:[0xFFE0D2, 0x6A4E6C], motes:0xFFD0B0, grass:0x7EA458, lay:{ '-6':0xFFD2C6, '-5':0xFFDCD0, '-4':0x9C88BA, '-3':0x7E86A6, '-2':0x6C8A5C } },
+          sky:[0x9AA0C4, 0xF0CFC0, 0xC1A797], bg:0xDCC4C4, fog:0xD4BDB7, hemi:[0xFFEDE6, 0x7D7064], sun:0xF6E4CE, ground:0xC7B394, rays:0xFFE8D6, grass:0x8DA160,
            lay:{ '-6':0xF3D8D2, '-5':0xE7D3D0, '-4':0xA59FB5, '-3':0x8D95A0, '-2':0x77866A },
            hex:{ '77706a':0x8E8070, '4a4a40':0x3E5B35, '8a8378':0xBBA689, '2a2622':0x80402C, 'e9e1d2':0xF6E6D0 } },
 };
 function paintArena(){
-  const C = S.color && COLOR_ARENA[ARENA.key];
+  const C0 = S.color && COLOR_ARENA[ARENA.key];
+  // painted: the colour palette with the painted light, sky and distance laid over it
+  const C = C0 && S.style === 'painted' && C0.paint ? Object.assign({}, C0, C0.paint, { lay:Object.assign({}, C0.lay, C0.paint.lay || {}), hex:C0.hex }) : C0;
+  MOTES.pts.material.color.setHex(C && C.motes ? C.motes : 0xFFD890);
   arenaG.traverse(o => {
     if (!o.material) return;
     for (const m of [].concat(o.material)){
@@ -1441,7 +1554,7 @@ function paintArena(){
       if (o.isSprite){ if (hx === 'ffffff' && C.rays) m.color.setHex(C.rays); continue; }
       if (o.isInstancedMesh){ m.color.setHex(o.geometry.type.startsWith('Plane') || m.type === 'MeshBasicMaterial' ? (C.leaves || C.grass || 0xFFFFFF) : (C.bamboo || C.grass || 0xFFFFFF)); continue; }
       if (m.side === THREE.BackSide && m.type === 'MeshBasicMaterial'){ const t = C.lay[String(o.renderOrder)]; if (t !== undefined) m.color.setHex(t); continue; }
-      if (hx === 'ffffff' && o.geometry){ if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); const bb = o.geometry.boundingBox; if (bb.max.y - bb.min.y < .01 || bb.max.z - bb.min.z < .01) m.color.setHex(C.ground); }
+      if (hx === 'ffffff' && o.geometry){ if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); const bb = o.geometry.boundingBox; if (bb.max.y - bb.min.y < .01 || bb.max.z - bb.min.z < .01 || Array.isArray(o.material)) m.color.setHex(C.ground); }
     }
   });
   // plain-coloured instanced grass (no texture)
@@ -1453,7 +1566,7 @@ function paintArena(){
   else { const b0 = new THREE.Color(cfg.bg), dk = b0.clone().multiplyScalar(.86), lo = b0.clone().lerp(new THREE.Color(cfg.fog[0]), .6).multiplyScalar(.93); setSky(dk.getHex(), b0.getHex(), lo.getHex()); }
   // rim light: the arena's sun colour in colour, paper in ink; a little stronger in the dark arenas
   const dark = ['kar', 'kopru'].includes(ARENA.key);
-  RIM.col.value.setHex(C ? new THREE.Color(C.sun).lerp(new THREE.Color(0xFFFFFF), .25).getHex() : 0xF7F1E1); RIM.k.value = dark ? .78 : .6;
+  RIM.col.value.setHex(C ? new THREE.Color(C.sun).lerp(new THREE.Color(0xFFFFFF), .25).getHex() : 0xF7F1E1); RIM.k.value = (dark ? .78 : .6) + (S.style === 'painted' ? .15 : 0);
   hemiLight.color.setHex(C ? C.hemi[0] : cfg.hemi[0]); hemiLight.groundColor.setHex(C ? C.hemi[1] : cfg.hemi[1]);
   sunLight.color.setHex(C ? C.sun : cfg.sun[0]);
 }
@@ -1466,7 +1579,8 @@ function repaintFighters(){
     dress(f);
   }
 }
-function setColorMode(on){ S.color = !!on; save(); paintArena(); repaintFighters(); }
+function setColorMode(on){ setStyle(on ? (S.style === 'ink' ? 'color' : S.style) : 'ink'); }
+function setStyle(st){ S.style = st; S.color = st !== 'ink'; save(); paintArena(); repaintFighters(); }
 // the opening shot of a match: bring a gust (and on the bridge, the first stroke of lightning) on cue
 function arenaCue(){ if (!AR.g) return; AR.g.next = AR.clock + 700; if (AR.storm) AR.storm.next = AR.clock + 1900; }
 function arenaClamp(f){
@@ -6577,12 +6691,13 @@ $('#t-ind').addEventListener('change', e => { S.indicator = e.target.checked; sa
 $('#t-slow').addEventListener('change', e => { S.slowmo = e.target.checked; save(); });
 $('#t-blood').addEventListener('change', e => { S.blood = e.target.checked; save(); if (!S.blood) clearDecals(); });
 $('#t-voice').addEventListener('change', e => { S.voices = e.target.checked; save(); });
-$('#t-color').addEventListener('change', e => setColorMode(e.target.checked));
-$('#t-reset').addEventListener('click', () => { for (const k of ['window','tol','sweep','whiff','speed','sens','vol','diff','indicator','slowmo','blood','voices']) S[k] = DEFAULTS[k]; save(); syncTune(); Sfx.setVol(S.vol); if (S.color !== DEFAULTS.color) setColorMode(DEFAULTS.color); syncTune(); });
+$('#t-style').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; setStyle(b.dataset.s); syncTune(); });
+$('#t-reset').addEventListener('click', () => { for (const k of ['window','tol','sweep','whiff','speed','sens','vol','diff','indicator','slowmo','blood','voices']) S[k] = DEFAULTS[k]; save(); syncTune(); Sfx.setVol(S.vol); if (S.style !== DEFAULTS.style) setStyle(DEFAULTS.style); syncTune(); });
 function syncTune(){
   for (const [key, fmt] of RANGES){ $('#t-' + key).value = S[key]; $('#o-' + key).textContent = fmt(S[key]); }
   document.querySelectorAll('#t-diff button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.d === S.diff)));
-  $('#t-ind').checked = S.indicator; $('#t-slow').checked = S.slowmo; $('#t-blood').checked = S.blood; $('#t-voice').checked = S.voices !== false; $('#t-color').checked = S.color !== false;
+  $('#t-ind').checked = S.indicator; $('#t-slow').checked = S.slowmo; $('#t-blood').checked = S.blood; $('#t-voice').checked = S.voices !== false;
+  document.querySelectorAll('#t-style button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.s === S.style)));
 }
 syncTune();
 $('#startBtn').addEventListener('click', () => { Sfx.init(); $('#menu').hidden = true; startMatch(); requestLock(); lastNow = performance.now(); });
@@ -6935,6 +7050,7 @@ function frame(now){
   }
   updateCamera(rdt, now);
   SKY.position.copy(camera.position);
+  updateMotes(now);
   camera.updateMatrixWorld(); RIM.dir.value.copy(sunLight.position).sub(sunLight.target.position).normalize().transformDirection(camera.matrixWorldInverse);
   if (window.__noRender){ requestAnimationFrame(frame); return; }
   for (const f of [you, foe]) if (f.cut && f.cut.live) updateLive(f, f.cut.live);
@@ -6942,6 +7058,7 @@ function frame(now){
     gradePass.uniforms.uTime.value = (now*.001) % 100;
     gradePass.uniforms.uSat.value = lerp(gradePass.uniforms.uSat.value, G.desat ? .22 : 1, 1 - Math.exp(-rdt*.006));
     gradePass.uniforms.uColor.value = lerp(gradePass.uniforms.uColor.value, S.color ? 1 : 0, 1 - Math.exp(-rdt*.008));
+    gradePass.uniforms.uPaint.value = S.style === 'painted' ? 1 : 0;
     gradePass.uniforms.uImpact.value = G.impact > 0 ? 1 : 0;
     // depth of field: the background melts away in the finisher and in locked exchanges
     const dofT = G.phase === 'finisher' ? 1 : (G.qte || G.bind) ? .75 : 0;

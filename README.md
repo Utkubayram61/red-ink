@@ -13,7 +13,7 @@ Your blade swings where you drag. A parry needs two things at once: the right mo
 - A dojo with 16 lessons
 - Play against the bot, or a friend online (peer to peer, just share the room link)
 - Character customization: headwear, hair, beards, armor, colors
-- Full color or classic ink-and-red look (toggle in settings)
+- Three looks: painted, full color, or the classic ink and red (switch in settings)
 
 ## Controls
 
