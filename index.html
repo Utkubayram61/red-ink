@@ -280,8 +280,68 @@ details.ctrls[open] summary::before{content:"– "}
 }
 @media (max-width:520px){.wgrid,.stats{grid-template-columns:minmax(0,1fr)}.meta .st{display:none}.title{gap:12px}}
 @media (prefers-reduced-motion:reduce){.co{animation-duration:700ms}.bar.post.hot i{animation:none}}
+
+/* ---------- phones and touch-only tablets: the duel needs a mouse ---------- */
+.gated #app{display:none}
+#gate{position:fixed;inset:0;z-index:50;overflow-y:auto;background:var(--paper);display:flex;justify-content:center;align-items:flex-start;
+  background-image:radial-gradient(ellipse at 50% 0%,rgba(200,55,43,.08),transparent 60%),repeating-linear-gradient(0deg,rgba(21,19,15,.018) 0 1px,transparent 1px 3px)}
+#gate .g-in{width:100%;max-width:460px;padding:max(28px,env(safe-area-inset-top)) 20px max(32px,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:18px}
+#gate .g-in>*{flex-shrink:0}
+#gate .g-cover{display:block;width:100%;height:auto;aspect-ratio:1200/630;object-fit:cover;box-shadow:0 0 0 1.5px var(--ink),6px 6px 0 var(--ink)}
+#gate .title{gap:14px}
+#gate h1{font-size:clamp(56px,19vw,84px)}
+#gate .seal{width:58px;font-size:11px}
+#gate .g-stroke{height:10px;width:62%;background:var(--red);border-radius:2px 40% 60% 3px/6px 50% 50% 4px;transform:rotate(-1.2deg);opacity:.9}
+#gate h2{margin:4px 0 0;font-family:var(--display);font-weight:800;font-size:clamp(28px,8vw,36px);line-height:1.12;color:var(--ink);text-wrap:balance}
+#gate p{margin:0;font-size:16px;color:var(--ink2);text-wrap:pretty}
+#gate .g-needs{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;margin:2px 0;padding:14px 16px;border:1.5px solid var(--line);font-size:14px;color:var(--ink2)}
+#gate .g-needs b{font-family:var(--mono);font-weight:600;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--red);align-self:center}
+#gate .g-act{display:grid;gap:10px;margin-top:4px}
+#gate .btn{width:100%;font-size:20px}
+#gate .g-done{font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:var(--gold);min-height:1.4em;text-align:center}
+#gate .g-anyway{justify-self:center;background:none;border:0;padding:6px;font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 </style>
 
+<div id="gate" hidden role="dialog" aria-labelledby="gHead">
+  <div class="g-in">
+    <div class="eyebrow">a 1v1 sword duel in steel and ink</div>
+    <img class="g-cover" src="cover.png" alt="Red Ink: two swordsmen mid-duel" onerror="this.remove();document.getElementById('gTitle').hidden=false">
+    <div class="title" id="gTitle" hidden><h1>Red<span class="thin">Ink</span></h1><div class="seal" aria-hidden="true">steel<br>&amp;<br>ink</div></div>
+    <div class="g-stroke" aria-hidden="true"></div>
+    <h2 id="gHead">This blade needs a desk.</h2>
+    <p>Red Ink is fought with a mouse: you drag to aim your sword and parry at the exact angle of the incoming cut. A touch screen can't do that yet, so the duel is desktop only for now.</p>
+    <div class="g-needs"><b>Play on</b><span>A computer with Chrome, Edge, Firefox or Safari</span><b>With</b><span>A mouse or trackpad and a keyboard</span></div>
+    <div class="g-act">
+      <button class="btn" id="gSend" type="button">Send the link to my computer</button>
+      <div class="g-done" id="gDone" aria-live="polite"></div>
+      <button class="g-anyway" id="gAnyway" type="button">Try it here anyway</button>
+    </div>
+  </div>
+</div>
+<script>
+/* Touch-only devices get the gate instead of the game (an iPad with a trackpad or mouse plays normally).
+   "Try it here anyway" is remembered for the session. */
+(function(){
+  var mm = function(q){ return window.matchMedia && matchMedia(q).matches; };
+  var touchOnly = mm('(pointer: coarse)') && !mm('(any-pointer: fine)');
+  var phoneUA = /Android|iPhone|iPod|Mobile|Windows Phone/i.test(navigator.userAgent);
+  var forced = false; try { forced = sessionStorage.getItem('redink-anyway') === '1'; } catch(e){}
+  if (/[?&]desktop=1/.test(location.search)) forced = true;
+  if (!(touchOnly || phoneUA) || forced) return;
+  window.__RI_GATE = true;
+  var gate = document.getElementById('gate');
+  gate.hidden = false; document.documentElement.classList.add('gated');
+  var url = location.href.split('#')[0], done = document.getElementById('gDone'), send = document.getElementById('gSend');
+  if (!navigator.share) send.textContent = 'Copy the link';
+  send.addEventListener('click', function(){
+    if (navigator.share){ navigator.share({ title:'Red Ink', text:'A 1v1 sword duel in the browser. Play it on a computer:', url:url }).catch(function(){}); return; }
+    var ok = function(){ done.textContent = 'Link copied. Open it on your computer.'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(ok, function(){ done.textContent = url; });
+    else done.textContent = url;
+  });
+  document.getElementById('gAnyway').addEventListener('click', function(){ try { sessionStorage.setItem('redink-anyway', '1'); } catch(e){} location.reload(); });
+})();
+</script>
 <div id="app">
   <canvas id="gl" aria-label="Duel arena"></canvas>
   <div id="arenaTitle"><div class="atk"></div><div class="atx"><div class="atn"></div><div class="atl"></div></div></div>
@@ -433,6 +493,7 @@ details.ctrls[open] summary::before{content:"– "}
 <script>
 (function(){
 'use strict';
+if (window.__RI_GATE) return;
 const $ = s => document.querySelector(s);
 const DEG = Math.PI/180, TAU = Math.PI*2;
 const wrap = a => { a = (a + Math.PI) % TAU; if (a < 0) a += TAU; return a - Math.PI; };
