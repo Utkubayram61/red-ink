@@ -2442,6 +2442,68 @@ function buildView(isPlayer){
   return { root, body, hips, knees, feet, armL, armR, foreL, foreR, elbowL, elbowR, handL, handR, rig, rigBase:rig.position.clone(), swing, weapon, gripA, gripB, tip, base, bladeMat, gripMat, guardMat, wmesh:null,
     baseMats:[mDark, mLeg, mSkin, mArm], mats:[mDark, mLeg, mSkin, mArm], legMat:mLeg, armMat:mArm, accent:P.accent, pal:P, side:isPlayer ? 'you' : 'foe', heavyRing, outfit, outfitMats:[] };
 }
+/* ---- painted faces ----
+   The patch covers the front of the head: canvas x runs across the face, canvas y from the forehead (theta .33pi) to the chin
+   (theta .75pi). Eyes sit at y 86, brows at 48, the nose at 146, the mouth at 181 (of 256). */
+const FACE_CACHE = new Map();
+function faceTextures(P, lower, scar){
+  const key = [P.hair, P.skin, lower, scar].join('|');
+  if (FACE_CACHE.has(key)) return FACE_CACHE.get(key);
+  const hx = n => '#' + new THREE.Color(n).getHexString();
+  const INKC = '#15130F', brow = hx(P.hair === P.dark ? 0x1A1714 : P.hair), line = '#' + new THREE.Color(P.skin).lerp(new THREE.Color(0x2A1810), .78).getHexString();
+  const make = (draw) => canvasTex(256, 256, (g) => { g.lineCap = 'round'; g.lineJoin = 'round'; draw(g); });
+  // a tapered brush stroke along a quadratic curve
+  const stroke = (g, x0, y0, cx, cy, x1, y1, w0, w1, col) => {
+    const N = 14; g.fillStyle = col;
+    for (let i=0;i<=N;i++){ const t = i/N, a = (1 - t)*(1 - t), b = 2*(1 - t)*t, c = t*t, x = a*x0 + b*cx + c*x1, y = a*y0 + b*cy + c*y1, w = w0 + (w1 - w0)*t; g.beginPath(); g.arc(x, y, Math.max(.4, w/2), 0, TAU); g.fill(); }
+  };
+  const EX = [78, 178], EY = 88;
+  const brows = (g, tilt, lift) => { for (const [i, x] of EX.entries()){ const s = i ? 1 : -1; stroke(g, x - 26*s, 52 - lift + tilt*.5, x, 44 - lift, x + 22*s, 52 - lift - tilt, 9, 3, brow); } };
+  const eyesOpen = (g, wide) => { for (const [i, x] of EX.entries()){ const s = i ? 1 : -1;
+      stroke(g, x - 20*s, EY + 2, x - 2*s, EY - 8 - wide*4, x + 20*s, EY - 1, 5, 2.5, INKC);               // upper lid
+      stroke(g, x - 14*s, EY + 5, x, EY + 9 + wide*2, x + 14*s, EY + 5, 1.6, 1, INKC);                        // lower lid, faint
+      g.fillStyle = INKC; g.beginPath(); g.arc(x - 1*s, EY + 1 - wide, 6 - wide*1.5, 0, TAU); g.fill();        // iris
+      g.fillStyle = 'rgba(255,251,240,.9)'; g.beginPath(); g.arc(x + 2*s, EY - 2 - wide, 1.6, 0, TAU); g.fill(); } };
+  const eyesShut = (g, droop) => { for (const [i, x] of EX.entries()){ const s = i ? 1 : -1; stroke(g, x - 18*s, EY, x, EY + 6 + droop, x + 18*s, EY - 1, 4, 2, INKC); } };
+  const eyesSqueeze = (g) => { for (const [i, x] of EX.entries()){ const s = i ? 1 : -1; stroke(g, x - 18*s, EY - 7, x + 2*s, EY + 1, x - 16*s, EY + 7, 4.5, 2, INKC); } };
+  const nose = (g) => { if (lower) return; stroke(g, 131, 118, 138, 142, 126, 150, 3, 2, line); stroke(g, 118, 152, 122, 155, 127, 152, 2, 1.5, line); };
+  const mouth = (g, kind) => {
+    if (lower) return;
+    if (kind === 'calm') stroke(g, 102, 182, 128, 186, 154, 180, 4.6, 3.2, line);
+    else if (kind === 'dead') { g.fillStyle = '#3A1410'; g.beginPath(); g.ellipse(128, 184, 13, 8, 0, 0, TAU); g.fill(); }
+    else {
+      const w = kind === 'shout' ? 32 : 36, h = kind === 'shout' ? 34 : 16, y = kind === 'shout' ? 172 : 178;
+      g.fillStyle = '#3A1410'; g.beginPath(); g.moveTo(128 - w, y); g.quadraticCurveTo(128, y - 6, 128 + w, y); g.quadraticCurveTo(128 + w*.7, y + h, 128, y + h + 2); g.quadraticCurveTo(128 - w*.7, y + h, 128 - w, y); g.fill();
+      g.fillStyle = 'rgba(245,238,224,.95)'; g.fillRect(128 - w*.7, y - 1, w*1.4, kind === 'shout' ? 4 : 5);          // teeth
+      if (kind === 'pain') g.fillRect(128 - w*.6, y + h - 5, w*1.2, 3);
+      stroke(g, 128 - w - 2, y + 1, 128, y - 7, 128 + w + 2, y + 1, 2.4, 2.4, line);
+    }
+    // the fold from nose to mouth, deeper when shouting
+    if (kind === 'shout' || kind === 'pain') for (const s of [-1, 1]) stroke(g, 128 + 22*s, 150, 128 + 30*s, 162, 128 + 32*s, 176, 2.2, 1, line);
+  };
+  const scarMark = (g) => { if (scar) stroke(g, 190, 60, 182, 90, 170, 128, 4, 2, '#7A1A14'); };
+  const T = {
+    calm: make(g => { brows(g, 6, 0); eyesOpen(g, 0); nose(g); mouth(g, 'calm'); scarMark(g); }),
+    blink: make(g => { brows(g, 6, 0); eyesShut(g, 0); nose(g); mouth(g, 'calm'); scarMark(g); }),
+    shout: make(g => { brows(g, 16, -4); eyesOpen(g, 1); nose(g); mouth(g, 'shout'); scarMark(g); }),
+    pain: make(g => { brows(g, -12, 6); eyesSqueeze(g); nose(g); mouth(g, 'pain'); scarMark(g); }),
+    dead: make(g => { brows(g, -4, -2); eyesShut(g, 3); nose(g); mouth(g, 'dead'); scarMark(g); }),
+  };
+  FACE_CACHE.set(key, T); return T;
+}
+// which face the state calls for
+function faceFor(f){
+  const s = f.state, a = f.atk;
+  if (s === 'dead') return 'dead';
+  if (s === 'finVictim') return f.t > 900 ? 'dead' : 'pain';
+  if (s === 'hitstun' || s === 'stagger' || s === 'broken' || s === 'parryRecover' && f.t < 120) return 'pain';
+  if (s === 'active' || s === 'art' || s === 'fin' || s === 'bind' || s === 'qte' || s === 'hold' || (s === 'windup' && a && a.heavy) || s === 'throw' || (s === 'flip' && f.t < FLIP_DOWN)) return 'shout';
+  if (winded(f) && Math.sin(performance.now()*.004) > .3) return 'pain';
+  const now = performance.now(), v = f.v;
+  if (!v.blinkAt) v.blinkAt = now + rand(1500, 4000);
+  if (now > v.blinkAt + 140) v.blinkAt = now + rand(1800, 4200);
+  return (now > v.blinkAt && now < v.blinkAt + 140) ? 'blink' : 'calm';
+}
 /* ---- character customisation ----
    A look is a choice per slot plus optional colours. 'auto' in a slot keeps what the weapon would wear, so an empty look
    is exactly the weapon's outfit. Looks are cosmetic only: nothing here touches the simulation. */
@@ -2542,6 +2604,7 @@ function dress(f){
   for (const o of v.extra || []){ if (o.parent) o.parent.remove(o); if (o.geometry) o.geometry.dispose(); }
   v.extra = [];
   for (const m of v.outfitMats) m.dispose();
+  if (v.faceMat){ v.faceMat.dispose(); v.faceMat = null; }
   f.cloth = []; f.tails = []; f.look = R.torso; f.dressKey = lookKey(f);
   const M = {}; const mk = (key, hex, o) => M[key] || (M[key] = mat(hex, o));
   const add = (geo, m, x, y, z, w, parent) => { const me = new THREE.Mesh(geo, m); me.position.set(x,y,z); me.castShadow = true; (parent||g).add(me); if (parent && parent !== g && parent.parent !== g) v.extra.push(me); outline(me, w === undefined ? .018 : w); return me; };
@@ -2572,11 +2635,23 @@ function dress(f){
   if (!coat) add(new THREE.BoxGeometry(.16, .1, .07), mk('accent', P.accent), 0, .1, .24);
   // neck, head
   add(new THREE.CylinderGeometry(.065, .075, .12, 8), mk('skin', P.skin), 0, .83, 0);
-  add(new THREE.SphereGeometry(.14, 12, 9), mk('skin', P.skin), 0, .96, 0);
+  add(new THREE.SphereGeometry(.14, 18, 14), mk('skin', P.skin), 0, .96, 0).scale.set(1, 1.05, 1.02);
+  // a nose and ears give the head a profile; they hide inside hoods and helmets
+  for (const sx of [-1, 1]) add(new THREE.SphereGeometry(.032, 8, 6), mk('skin', P.skin), .139*sx, .955, .005, .006).scale.set(.45, 1, .75);
   const inkM = mk('dark', P.dark);
   // ---- face ----
   const covered = R.face === 'oni' || R.face === 'kitsune';
-  if (!covered) for (const sx of [-1, 1]) add(new THREE.BoxGeometry(.055, .016, .014), inkM, .052*sx, .972, -.132, 0).rotation.z = .16*sx;
+  // the face is painted: brush-drawn eyes, brows, nose and mouth on a thin shell over the front of the head. A set of expressions is
+  // painted once per look and swapped by the fighter's state (poseFighter): calm, blink, shout, pain, dead.
+  v.faceTex = null; v.faceKey = '';
+  if (!covered){
+    const lower = R.face === 'menpo' || R.face === 'cloth';
+    v.faceTex = faceTextures(P, lower, R.face === 'scar');
+    const fm = new THREE.MeshBasicMaterial({ map:v.faceTex.calm, transparent:true, alphaTest:.3, depthWrite:false });
+    v.faceMat = fm;
+    const face = new THREE.Mesh(new THREE.SphereGeometry(.1418, 28, 18, Math.PI*1.5 - .95, 1.9, Math.PI*.33, Math.PI*.42), fm);
+    face.position.set(0, .96, 0); face.scale.set(1, 1.05, 1.02); face.userData.noEdge = true; face.renderOrder = 1; g.add(face);
+  }
   if (R.face === 'scar'){ const sc = add(new THREE.BoxGeometry(.016, .15, .012), mk('scar', 0x7A1A14), .056, .975, -.137, 0); sc.rotation.z = .45; }
   else if (R.face === 'cloth'){ add(new THREE.CylinderGeometry(.15, .142, .11, 16, 1, true, Math.PI - 1.35, 2.7), mk('fcloth', P.dark, ds), 0, .9, 0, .01); }
   else if (R.face === 'menpo'){
@@ -2638,7 +2713,6 @@ function dress(f){
   // ---- face hair: brows always (unless masked), and the beard ----
   const masked = R.face === 'menpo' || R.face === 'oni' || R.face === 'kitsune' || R.face === 'cloth';
   if (!masked){
-    for (const sx of [-1, 1]){ const br = add(new THREE.BoxGeometry(.06, .014, .016), hairM, .052*sx, 1.0, -.133, 0); br.rotation.z = -.12*sx; }
     const B = R.beard;
     if (B === 'stubble' || B === 'full'){
       const bc = B === 'full' ? hairM : mk('stubble', new THREE.Color(P.skin).lerp(new THREE.Color(P.hair), .45).getHex());
@@ -3059,6 +3133,36 @@ function buildWeapon(v, w){
     add(new THREE.SphereGeometry(.03, 10, 8), M.gold, -.205, 0, 0).scale.set(1.25, 1, 1);
   }
   v.weapon.add(g); v.wmesh = g;
+  // ---- the scabbard: a katana's saya is pushed through the sash at the left hip, edge up; a longsword or rapier hangs from
+  // the belt. The two-handed flame blade is carried bare. ----
+  if (v.saya){ for (const s of v.saya){ s.parent && s.parent.remove(s); s.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } }
+  v.saya = [];
+  if (key !== 'zwei'){
+    const worn = key === 'katana' || key === 'dual', len = L*(key === 'dual' ? .98 : 1.02) + .05;
+    const sayaM = worn ? toon(0x1B1917) : toon(0x3A2A20), fit = worn ? M.iron : (key === 'rapier' ? M.gold : v.guardMat);
+    const one = (sx) => {
+      const sg = new THREE.Group();
+      const mouth = worn ? new THREE.Vector3(-.21*sx, .13, -.2) : new THREE.Vector3(-.25*sx, .06, -.06);
+      const dir = (worn ? new THREE.Vector3(-.05*sx, -.4, 1) : new THREE.Vector3(-.1*sx, -1, .38)).normalize();
+      sg.position.copy(mouth); sg.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir);
+      const put = (geo, m, x, y, z, rz) => { const me = new THREE.Mesh(geo, m); me.position.set(x, y || 0, z || 0); me.rotation.z = rz || 0; me.castShadow = true; sg.add(me); outline(me, .006); return me; };
+      const body = put(new THREE.CylinderGeometry(W*.62 + .012, W*.5 + .012, len, 10), sayaM, len/2, 0, 0, -Math.PI/2); body.scale.set(1, 1, .62);
+      put(new THREE.CylinderGeometry(W*.66 + .016, W*.66 + .016, .03, 10), worn ? toon(0xD8CFBD) : fit, .015, 0, 0, -Math.PI/2).scale.set(1, 1, .66);   // mouth (koiguchi)
+      put(new THREE.CylinderGeometry(W*.52 + .015, W*.4 + .013, .05, 10), fit, len - .02, 0, 0, -Math.PI/2).scale.set(1, 1, .66);                         // end cap (kojiri)
+      if (worn){
+        // the sageo cord, tied round the sash
+        const cord = toon(v.accent || 0x9A2A20);
+        const tb = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(.12, .03, 0), new THREE.Vector3(.16, .1, .06), new THREE.Vector3(.08, .16, .1), new THREE.Vector3(.02, .12, .12)]), 12, .007, 5, false), cord);
+        sg.add(tb); outline(tb, .004);
+        put(new THREE.BoxGeometry(.02, .012, W*.9), fit, .1, W*.3, 0);     // kurigata, the cord knob
+      } else {
+        // straps to the belt
+        for (const x of [.06, .2]) put(new THREE.TorusGeometry(W*.62 + .014, .006, 4, 12), toon(0x2A2622), x, 0, 0, 0).rotation.y = Math.PI/2;
+      }
+      v.body.add(sg); v.saya.push(sg);
+    };
+    one(1); if (key === 'dual') one(-1);
+  }
   if (!v.weapon2){ v.weapon2 = new THREE.Group(); v.weapon2.name = 'weapon2'; v.body.add(v.weapon2); }
   while (v.weapon2.children.length) v.weapon2.remove(v.weapon2.children[0]);
   v.weapon2.visible = key === 'dual';
@@ -5601,6 +5705,7 @@ function poseFighter(f, dt, now){
   f.prevAlpha = P.alpha; f.prevPhi = P.phi;
   stepOutfit(f, dt, now);
   placeBlob(f);
+  if (v.faceTex && v.faceMat){ const fk = faceFor(f); if (fk !== v.faceKey){ v.faceKey = fk; v.faceMat.map = v.faceTex[fk]; } }
   updateScarf(f, dt);
 }
 // shoulder S to hand H with an elbow between: upper arm UA, forearm FA. The elbow bends toward a pole below, outside
