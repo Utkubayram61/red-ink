@@ -3576,7 +3576,7 @@ function tryParry(f, angle){
   f.counterParry = counter;
   f.parryAngle = wrap(angle); f.parryPressT = T;
   f.sweep = [{ t:T, a:f.parryAngle }];
-  enter(f, 'parry', counter ? S.window*Math.max(.55, .95 - .08*(G.counterN || 0)) : S.window);
+  enter(f, 'parry', counter ? WIN()*Math.max(.55, .95 - .08*(G.counterN || 0)) : WIN());
   if (f.isPlayer) Sfx.tick();
   if (fight() && f.isPlayer) f.stats.parryTry++;
   return true;
@@ -3590,7 +3590,7 @@ function steerParry(f, angle){
   if (f.sweep.length > 60) f.sweep.shift();
 }
 function liveSweep(f){
-  const s = f.sweep || [], from = T - S.sweep;
+  const s = f.sweep || [], from = T - S.sweep*GAME_SPEED;
   let i = s.length - 1;
   while (i > 0 && s[i].t >= from) i--;   // keep one sample from just before the window so the arc into it counts
   return s.slice(Math.max(0, i));
@@ -3762,7 +3762,7 @@ function resolve(a, b){
       else { if (b === you) dojoParryLog(T - b.parryPressT, 'angle'); b.stats.angleFail++; setTiming(`<b class="bad">WRONG ANGLE</b>good timing, but turn your guard to the marked side`); }
     }
   } else if (b.state === 'parryRecover' && b.isPlayer && fight()){
-    const early = T - (b.parryPressT + S.window);
+    const early = T - (b.parryPressT + WIN());
     b.stats.early++; if (b === you) dojoParryLog(T - b.parryPressT, 'early');
     setTiming(`<b class="bad">TOO EARLY</b>your parry closed ${Math.round(early)} ms before the blow`);
   }
@@ -3847,7 +3847,7 @@ const DEFLECT = 210;
    mouse the whole time. Timing still matters: a blow met inside the classic window is a perfect parry, one met by a guard
    that has been held longer is a plain parry that keeps the rally going. */
 const GUARD_MAX = 700, PERFECT_LATE = 70;
-function parryPerfect(b){ const into = T - b.parryPressT; return !!b.counterParry || (into >= S.window*.45 && into <= S.window + PERFECT_LATE); }
+function parryPerfect(b){ const into = T - b.parryPressT; return !!b.counterParry || (into >= WIN()*.45 && into <= WIN() + PERFECT_LATE); }
 function bumpChain(){
   G.chain = (T - G.lastClashT < 1600) ? G.chain + 1 : 1;
   G.lastClashT = T;
@@ -3896,7 +3896,7 @@ function parrySuccess(d, a, diff, tolDeg, swept){
       if (counter){ callout(G.counterN > 1 ? `Counter parry ×${G.counterN}` : 'Counter parry', 'gold', 'the tables turn · riposte is yours'); kanji('返し', { seal:'極' }); }
       else if (perfect){ callout('Perfect parry', 'gold', 'riposte now'); kanji('見切り', { seal:'極' }); }
       else if (chain < 2) callout('Parry', 'good', 'strike back');
-      const heldLong = !perfect && into > S.window + PERFECT_LATE;
+      const heldLong = !perfect && into > WIN() + PERFECT_LATE;
       setTiming(`<b class="ok">${perfect ? 'PERFECT' : 'PARRY ✓'}</b>${perfect ? 'right on the beat' : heldLong ? 'a held guard deflects · tap just before the blow for a perfect parry' : 'press a moment earlier for a perfect parry'}`);
     } else if (counter) callout('Riposte countered', 'bad', 'now you are staggered');
     else if (perfect) callout('Perfectly parried', 'bad', 'riposte incoming · try a counter parry');
@@ -5235,7 +5235,7 @@ function stepFighter(f, dt){
     case 'parry': {
       const held = f.ctl && f.ctl.rmb && !f.counterParry && f.t < GUARD_MAX;
       if (f.t >= f.dur && !held){
-        enter(f, 'parryRecover', S.whiff*(f.t > S.window + 40 ? .55 : .7));
+        enter(f, 'parryRecover', S.whiff*(f.t > WIN() + 40 ? .55 : .7));
         addPosture(f, 5);
         if (f.isPlayer && fight() && f.opp.state !== 'windup' && f.opp.state !== 'active'){
           f.stats.whiff++;
@@ -5395,7 +5395,7 @@ function botThink(b, br, D){
   if ((b.state === 'stagger' || b.state === 'deflect') && p.atk && p.atk.riposte && (p.state === 'windup' || p.state === 'hold') && br.cpSeen !== p.atk){
     br.cpSeen = p.atk;
     if (Math.random() < D.cparry){
-      const w = S.window*Math.max(.45, .78 - .1*(G.counterN || 0));
+      const w = WIN()*Math.max(.45, .78 - .1*(G.counterN || 0));
       br.plan = { type:'parry', at: T + Math.max(0, p.dur - p.t - w*rand(.25, .7) + rand(-1,1)*D.timeNoise*.5), angle: wrap(mirror(p.atk.angle) + rand(-1,1)*D.angNoise*DEG), atk:p.atk };
     }
   }
@@ -5407,7 +5407,7 @@ function botThink(b, br, D){
       if (k === 'katana') br.artQ.push({ type:'roll', at:T0 + 205 - ROLL_IF0, dir:sideDir });
       else if (k === 'longsword') br.artQ.push(Math.random() < .5 ? { type:'dash', at:T0 + 630, dir:sideDir } : { type:'roll', at:T0 + 700 - ROLL_IF0 - 70, dir:sideDir });
       else if (k === 'zwei') br.artQ.push({ type:'roll', at:T0 + ZWEI_T0 + ZWEI_TURN*.62 - ROLL_IF0 - 60, dir:away });
-      else if (k === 'rapier') for (const st of RAPIER_T) br.artQ.push({ type:'parry', at:T0 + st - S.window*(Math.random() < D.parry*.5 ? .72 : .35) });
+      else if (k === 'rapier') for (const st of RAPIER_T) br.artQ.push({ type:'parry', at:T0 + st - WIN()*(Math.random() < D.parry*.5 ? .72 : .35) });
       else if (k === 'dual') br.artQ.push({ type:'duck', at:T0 + DUAL_T[0] - 120, until:T0 + DUAL_T[3] + 50 }, { type:'roll', at:T0 + DUAL_X - ROLL_IF0 - 50, dir:sideDir });
       else if (k === 'spear') br.artQ.push({ type:'roll', at:T0 + SPEAR_SWEEP - ROLL_IF0 - 40, dir:sideDir }, { type:'dash', at:T0 + SPEAR_LUNGE - 60, dir:sideDir });
       else if (k === 'kusari') br.artQ.push({ type:'duck', at:T0 + KUSARI_T[0] - 120, until:T0 + KUSARI_T[2] + 60 }, { type:'roll', at:T0 + KUSARI_CUT - ROLL_IF0 - 50, dir:sideDir });
@@ -5426,9 +5426,9 @@ function botThink(b, br, D){
     if (pr.fall || pr.passed || SIMF[1 - pr.own] !== b || br.projSeen === pr.id + (pr.back ? 'b' : '')) continue;
     br.projSeen = pr.id + (pr.back ? 'b' : '');
     const eta = Math.max(0, (Math.hypot(b.pos.x - pr.x, b.pos.z - pr.z) - .4)/SHURI_SPEED*1000), r = Math.random();
-    if (eta < D.react*.35) continue;
+    if (eta < (D.react*GAME_SPEED)*.35) continue;
     if (b.state === 'idle' || b.state === 'crouch'){
-      if (r < D.parry*.75) br.projQ = { type:'parry', at:T + eta - S.window*(Math.random() < .5 ? .7 : .35) };
+      if (r < D.parry*.75) br.projQ = { type:'parry', at:T + eta - WIN()*(Math.random() < .5 ? .7 : .35) };
       else if (r < D.parry*.75 + D.dodge + .15){ const a = dirTo(b, p), sg = Math.random() < .5 ? 1 : -1; br.projQ = { type:'dash', at:T + Math.max(0, eta - 70), dir:norm(-a.z*sg, a.x*sg) }; }
     }
   }
@@ -5442,7 +5442,7 @@ function botThink(b, br, D){
   if (br.comboAt && T >= br.comboAt){ br.comboAt = 0; tryAttack(b, 0, false); }
   // a held blade: cut in before it drops, or guess the release
   if (p.state === 'hold' && br.seenHold !== p.atk){ br.seenHold = p.atk; br.holdT = T; br.holdDone = false; }
-  if (br.seenHold && !br.holdDone && p.state === 'hold' && T - br.holdT >= D.react*.6){
+  if (br.seenHold && !br.holdDone && p.state === 'hold' && T - br.holdT >= (D.react*GAME_SPEED)*.6){
     br.holdDone = true;
     if (b.state === 'idle' && !br.plan){
       if (d <= b.w.reach + .3 && Math.random() < .4*D.aggr) tryAttack(b, pickAngle(p), false);
@@ -5460,16 +5460,16 @@ function botThink(b, br, D){
 
   // a spin might end in a side cut, or in nothing: guess
   if (p.state === 'spin' && br.seenSpin !== p.sid){ br.seenSpin = p.sid; br.spinSeenT = T; br.spinDecided = false; }
-  if (br.seenSpin && !br.spinDecided && T - br.spinSeenT >= D.react && b.state === 'idle' && !br.plan){
+  if (br.seenSpin && !br.spinDecided && T - br.spinSeenT >= (D.react*GAME_SPEED) && b.state === 'idle' && !br.plan){
     br.spinDecided = true;
     const guessHit = T + Math.max(0, SPIN_DUR - (T - br.spinSeenT)) + Math.max(230, p.w.windL*.62)*S.speed*.7, r = Math.random();
     const fake = { feinted:false };
     if (r < .3){ br.plan = { type:'duck', at: guessHit - 200, atk:fake }; }
-    else if (r < .55){ br.plan = { type:'parry', at: guessHit - S.window*.5, angle: mirror(p.spinDir > 0 ? 0 : Math.PI), atk:fake }; }
+    else if (r < .55){ br.plan = { type:'parry', at: guessHit - WIN()*.5, angle: mirror(p.spinDir > 0 ? 0 : Math.PI), atk:fake }; }
   }
   // read the opponent's windup after a reaction delay
   if (p.state === 'windup' && p.atk && p.atk !== br.seenAtk){ br.seenAtk = p.atk; br.seenT = T; br.decided = false; }
-  if (br.seenAtk && !br.decided && T - br.seenT >= D.react){
+  if (br.seenAtk && !br.decided && T - br.seenT >= (D.react*GAME_SPEED)){
     br.decided = true;
     const atk = br.seenAtk;
     if (p.state === 'windup' && p.atk === atk && !atk.feinted && b.state === 'idle' && d <= p.w.reach + 1){
@@ -5488,7 +5488,7 @@ function botThink(b, br, D){
           if (Math.random() < D.correct){ br.correctTo = mirror(atk.angle); br.correctDelay = rand(30, 90); }
         }
         br.guardTarget = wrap(ang); br.guardT = T + 1200;
-        br.plan = { type:'parry', at: T + Math.max(0, remaining - S.window*rand(.25,.75) + rand(-1,1)*D.timeNoise), angle:wrap(ang), atk };
+        br.plan = { type:'parry', at: T + Math.max(0, remaining - WIN()*rand(.25,.75) + rand(-1,1)*D.timeNoise), angle:wrap(ang), atk };
       } else if (Math.sin(mirror(atk.angle)) < -.45 && r < D.parry + D.dodge + .15 && Math.random() < .6){
         br.plan = { type:'hop', at: T + Math.max(0, remaining - rand(150, 230)), atk };
       } else if (isHorizontal(mirror(atk.angle)) && r < D.parry + D.dodge + .1 && Math.random() < .5){
@@ -5508,7 +5508,7 @@ function botThink(b, br, D){
   } else if (b.state !== 'parry' && !br.plan) br.correctTo = null;
   if (br.plan && T >= br.plan.at){
     const pl = br.plan; br.plan = null;
-    const seenFeint = pl.atk.feinted && (T - pl.atk.feintT) > D.react;
+    const seenFeint = pl.atk.feinted && (T - pl.atk.feintT) > (D.react*GAME_SPEED);
     if (!seenFeint){
       let ok = false;
       if (pl.type === 'parry') ok = tryParry(b, pl.angle);
@@ -6782,7 +6782,7 @@ function dojoDataUI(){
 }
 function dojoParryLog(into, res){
   if (!DOJO.on) return;
-  const W = S.window;
+  const W = WIN();
   const text = res === 'late' ? `too late · the blow landed ${Math.round(-into)} ms before` : res === 'early' ? `too early · ${Math.round(into)} ms before, window ${W} ms` : res === 'angle' ? `good timing (${Math.round(into)} ms), wrong angle` : `${Math.round(into)} ms before · ${res === 'perfect' ? 'perfect' : 'normal'} (perfect: ${Math.round(W*.45)}–${W} ms)`;
   DOJO.lastParry = { into:res === 'late' ? 0 : into, window:W, res, text };
 }
@@ -7234,11 +7234,15 @@ function rematchCheck(){
 }
 
 /* one step of the simulation over `ms` of real time; returns how far the visuals should move */
+/* The duel runs a fifth faster than the wall clock: feet, rolls, flips, blows and bodies all together. The parry window
+   and the bots' reaction times are stretched by the same factor, so in real time they stay what they were. */
+const GAME_SPEED = 1.2;
+const WIN = () => S.window*GAME_SPEED;
 function simAdvance(ms){
-  let scale = 1;
+  let scale = (G.phase === 'fight' || G.phase === 'roundEnd') ? GAME_SPEED : 1;
   if (G.phase !== 'result'){
     if (hitstop > 0){ hitstop -= ms; scale = 0; }
-    else if (slowmo > 0){ slowmo -= ms; scale = .32; }
+    else if (slowmo > 0){ slowmo -= ms; scale *= .32; }
   }
   const dt = ms*scale;
   if (G.phase === 'menu' || G.phase === 'intro' || G.phase === 'fight' || G.phase === 'roundEnd'){
