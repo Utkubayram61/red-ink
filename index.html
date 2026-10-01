@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@500;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&text=%E8%A6%8B%E5%88%87%E3%82%8A%E6%96%AC%E8%BF%94%E3%81%97%E5%B4%A9%E4%B8%80%E9%96%83%E5%8B%9D%E6%95%97%E6%A5%B5%E7%9F%B3%E9%A2%A8%E9%9B%AA%E5%B5%90%E7%AB%B9%E8%96%94%E8%96%87%E5%A4%A9%E5%89%B2%E6%97%8B%E9%9B%B7%E7%AA%81%E5%8F%8C%E6%8A%80%E9%A6%96%E8%B2%AB%E4%BB%8B%E9%8C%AF%E5%85%9C&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&text=%E8%A6%8B%E5%88%87%E3%82%8A%E6%96%AC%E8%BF%94%E3%81%97%E5%B4%A9%E4%B8%80%E9%96%83%E5%8B%9D%E6%95%97%E6%A5%B5%E7%9F%B3%E9%A2%A8%E9%9B%AA%E5%B5%90%E7%AB%B9%E8%96%94%E8%96%87%E5%A4%A9%E5%89%B2%E6%97%8B%E9%9B%B7%E7%AA%81%E5%8F%8C%E6%8A%80%E9%A6%96%E8%B2%AB%E4%BB%8B%E9%8C%AF%E5%85%9C%E9%BE%8D%E8%9B%87%E5%B7%BB&display=swap" rel="stylesheet">
 <style>
 /* Layout: full-bleed ink-on-paper arena; HUD pinned to the edges; menus are paper sheets on the left with a tuning column on the right.
    One deliberate look: paper, ink, one red for blood and danger, gold only for perfect moments. */
@@ -514,6 +514,8 @@ const WEAPONS = {
   zwei:     { name:'Zweihänder', tag:'Heavy and slow', windL:560, windH:960, active:140, recovery:620, dmgL:24, dmgH:44, reach:3.0, lunge:.35, len:1.5, width:.064, move:.85, riposteMul:1.4, feintFrac:.45, feintCost:1.2, tolBonus:0, hyper:true, noHeavyParry:false, posture:1.5, guard:'cross', mass:1.3, plus:'Hyper armor on heavy attacks, big posture damage', minus:'Long recovery, slow feet' },
   dual:     { name:'Twin Blades', tag:'Two blades, one dance', windL:290, windH:540, active:90, recovery:290, dmgL:10, dmgH:19, reach:2.05, lunge:.6, len:.84, width:.036, move:1.12, riposteMul:1.6, feintFrac:.6, feintCost:.8, tolBonus:-5, hyper:false, noHeavyParry:false, posture:.85, guard:'disc', mass:.8, comboMax:4, plus:'4-hit combo, fastest windup', minus:'Short reach, low damage, narrow parry angle' },
   rapier:   { name:'Rapier', tag:'Reach and feints', windL:300, windH:560, active:100, recovery:300, dmgL:10, dmgH:20, reach:2.9, lunge:.7, len:1.3, width:.018, move:1.1, riposteMul:1.6, feintFrac:.7, feintCost:.5, tolBonus:0, hyper:false, noHeavyParry:true, posture:1, guard:'cup', mass:.85, plus:'Cheap, late feints', minus:'Cannot parry heavy attacks' },
+  spear:    { name:'Spear', tag:'Keep them at the point', windL:380, windH:700, active:120, recovery:390, dmgL:15, dmgH:27, reach:3.3, lunge:.75, len:1.83, width:.05, move:.95, riposteMul:1.5, feintFrac:.55, feintCost:.9, tolBonus:0, hyper:false, noHeavyParry:false, posture:1.1, guard:'cross', mass:1.15, thrust:true, close:1.6, plus:'Longest reach · every blow is a thrust', minus:'Up close (under 1.6 m) the parry angle narrows' },
+  kusari:   { name:'Kusarigama', tag:'Chain and sickle', windL:300, windH:620, active:100, recovery:320, dmgL:11, dmgH:16, reach:2.0, lunge:.6, len:.2, width:.04, move:1.1, riposteMul:1.7, feintFrac:.6, feintCost:.8, tolBonus:-8, hyper:false, noHeavyParry:true, posture:.9, guard:'disc', mass:.8, chain:2.5, plus:'Heavy attack throws the chain from afar and pulls them in', minus:'Short sickle · narrow parry · cannot parry heavy blows' },
 };
 const MAX_HP = 200;   // twice the original pool: longer duels, more exchanges before the finisher
 const DIFFS = {
@@ -2276,7 +2278,7 @@ const Sfx = (function(){
     const bank = banks['v' + who + '_' + kind]; if (!bank || !bank.length) return;
     const buf = bank[Math.floor(Math.random()*bank.length)];
     const src = ac.createBufferSource(); src.buffer = toAB(buf);
-    const pitch = ({ zwei:.93, longsword:.98, katana:1, rapier:1.04, dual:1.06 })[f.wkey] || 1;
+    const pitch = ({ zwei:.93, longsword:.98, spear:.97, katana:1, rapier:1.04, kusari:1.05, dual:1.06 })[f.wkey] || 1;
     src.playbackRate.value = pitch*(1 + (Math.random()*2 - 1)*.03);
     const g = ac.createGain(); g.gain.value = (vol || 1)*.9; src.connect(g); g.connect(dest(panOf(f)));
     if (revIn){ const s2 = ac.createGain(); s2.gain.value = .22; g.connect(s2); s2.connect(revIn); }
@@ -2575,6 +2577,8 @@ const OUTFIT = {
   zwei:      { look:'armored', bulk:1.13, hakama:true, sleeve:.2,  hat:'kabuto', tails:['crestL', 'crestR'], plate:2 },
   rapier:    { look:'duelist', bulk:.9,  hakama:false, sleeve:0,   hat:'brim',   tails:['plume'], coat:true },
   dual:      { look:'dancer',  bulk:.92, hakama:true,  sleeve:0,   hat:'none',   tails:['band', 'band2'], torso:'haori', legs:'short', feet:'tabi' },
+  spear:     { look:'ashigaru', bulk:1,  hakama:true,  sleeve:.3,  hat:'jingasa', tails:['band'], plate:1, feet:'suneate', back:'banner' },
+  kusari:    { look:'shinobi', bulk:.9,  hakama:false, sleeve:0,   hat:'hood',   tails:['band', 'band2'], torso:'kimono', legs:'pants', feet:'tabi', face:'cloth' },
 };
 function buildView(isPlayer){
   const P = (S.color ? PALS_C : PALS)[isPlayer ? 'you' : 'foe'];
@@ -2739,11 +2743,11 @@ function randomLook(){
 // the weapon's own outfit, expressed in the same slots
 function autoLook(wkey){
   const O = OUTFIT[wkey] || OUTFIT.longsword;
-  return { head:O.hat, face:O.plate === 2 ? 'menpo' : 'none', torso:O.torso || (O.coat ? 'coat' : O.plate === 2 ? 'heavy' : O.plate ? 'do' : 'kimono'),
+  return { head:O.hat, face:O.face || (O.plate === 2 ? 'menpo' : 'none'), torso:O.torso || (O.coat ? 'coat' : O.plate === 2 ? 'heavy' : O.plate ? 'do' : 'kimono'),
     shoulders:O.plate === 2 ? 'heavy' : O.plate ? 'light' : 'none', arms:O.sleeve >= .45 ? 'wide' : O.sleeve >= .3 ? 'sleeve' : O.sleeve > 0 ? 'kote' : 'narrow',
     legs:O.legs || (O.coat ? 'tails' : O.plate === 2 ? 'tassets' : 'hakama'), feet:O.feet || (O.coat ? 'boots' : O.plate === 2 ? 'suneate' : 'waraji'),
-    back:({ scarf:'scarf', band:'band', crestL:'cords', plume:'plume' })[O.tails[0]] || 'none', bulk:O.bulk,
-    hair:'auto', beard:({ katana:'stubble', zwei:'full', rapier:'mustache' })[wkey] || 'none' };
+    back:O.back || ({ scarf:'scarf', band:'band', crestL:'cords', plume:'plume' })[O.tails[0]] || 'none', bulk:O.bulk,
+    hair:'auto', beard:({ katana:'stubble', zwei:'full', rapier:'mustache', spear:'goatee' })[wkey] || 'none' };
 }
 function resolveLook(wkey, L){
   const R = autoLook(wkey);
@@ -3293,6 +3297,25 @@ function buildWeapon(v, w){
     add(new THREE.CylinderGeometry(.029, .029, .05, 8), M.wrap, -.1, 0, 0, 0, 0, -Math.PI/2);
     const pom = new THREE.LatheGeometry([[.0, 0], [.03, .01], [.042, .045], [.03, .075], [.012, .09], [0, .092]].map(p => new THREE.Vector2(p[0], p[1])), 10);
     add(pom, v.guardMat, -.34, 0, 0, 0, 0, Math.PI/2);
+  } else if (key === 'spear'){
+    // su-yari: a straight three-faced head on a long lacquered shaft, a brass collar, an iron butt cap
+    const HEAD = .34, x0 = B0 + L - HEAD, BUTT = -.66, shaftM = toon(0x3A2017);
+    add(new THREE.CylinderGeometry(.02, .024, x0 - BUTT, 8), shaftM, (x0 + BUTT)/2, 0, 0, 0, 0, -Math.PI/2);
+    add(bladeGeo([[x0, -W*.42], [x0 + HEAD*.3, -W*.6], [x0 + HEAD, 0], [x0 + HEAD*.3, W*.6], [x0, W*.42]], .014, .004), v.bladeMat);
+    add(new THREE.BoxGeometry(HEAD*.8, .016, .006), M.steelD, x0 + HEAD*.42, 0, 0);                       // the ridge
+    add(new THREE.CylinderGeometry(.027, .025, .1, 8), M.gold, x0 - .05, 0, 0, 0, 0, -Math.PI/2);          // collar
+    add(new THREE.CylinderGeometry(.026, .026, .03, 8), M.iron, x0 - .14, 0, 0, 0, 0, -Math.PI/2);
+    for (let i=0;i<3;i++) add(new THREE.TorusGeometry(.023, .004, 4, 10), M.wrap, -.02 + i*.05, 0, 0, 0, Math.PI/2, 0);   // grip binding
+    add(new THREE.CylinderGeometry(.022, .016, .07, 8), M.iron, BUTT - .03, 0, 0, 0, 0, -Math.PI/2);      // butt cap
+    // a short red tassel under the head
+    for (const s of [-1, 1]){ const ts = add(new THREE.ConeGeometry(.03, .14, 6), toon(0x9A2A20), x0 - .2, -.05, .012*s, 0, 0, Math.PI*.92); ts.scale.set(1, 1, .5); }
+  } else if (key === 'kusari'){
+    // the sickle: a wooden haft with an iron collar and the blade set across its end, edge turned toward the hand.
+    // The chain and its weight live in the left hand (updateChain).
+    grip(-.15, .3, .019, .021, toon(0x4A3424));
+    add(new THREE.CylinderGeometry(.025, .025, .05, 8), M.iron, .3, 0, 0, 0, 0, -Math.PI/2);
+    add(bladeGeo([[.29, -.015], [.36, -.01], [.385, .08], [.37, .17], [.33, .25], [.27, .3], [.31, .21], [.33, .13], [.33, .05], [.3, .01]].map(([x, y]) => [.3 + (x - .3)*1.35, y*1.35]), .009, .003), v.bladeMat);
+    add(new THREE.TorusGeometry(.018, .005, 5, 10), M.iron, -.17, 0, 0, 0, Math.PI/2, 0);                   // the chain ring
   } else {
     // rapier: needle blade, gilt swept hilt
     const pts = [[B0, -W*.5], [B0 + .1, -W*.55], [B0 + L*.9, -W*.3], [B0 + L, 0], [B0 + L*.9, W*.3], [B0 + .1, W*.55], [B0, W*.5]];
@@ -3312,7 +3335,7 @@ function buildWeapon(v, w){
   // the belt. The two-handed flame blade is carried bare. ----
   if (v.saya){ for (const s of v.saya){ s.parent && s.parent.remove(s); s.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } }
   v.saya = [];
-  if (key !== 'zwei'){
+  if (key !== 'zwei' && key !== 'spear' && key !== 'kusari'){
     const worn = key === 'katana' || key === 'dual', len = L*(key === 'dual' ? .98 : 1.02) + .05;
     const sayaM = worn ? toon(0x1B1917) : toon(0x3A2A20), fit = worn ? M.iron : (key === 'rapier' ? M.gold : v.guardMat);
     const one = (sx) => {
@@ -3342,9 +3365,11 @@ function buildWeapon(v, w){
   while (v.weapon2.children.length) v.weapon2.remove(v.weapon2.children[0]);
   v.weapon2.visible = key === 'dual';
   if (key === 'dual'){ const g2 = g.clone(true); g2.scale.x = -1; v.weapon2.add(g2); }
-  v.tip.position.x = B0 + L; v.base.position.x = B0 + L*.3;
-  v.gripA.position.x = key === 'zwei' ? -.16 : key === 'rapier' ? -.06 : -.08;
-  v.gripB.position.x = key === 'rapier' ? .07 : .06;
+  v.tip.position.set(B0 + L, 0, 0); v.base.position.set(B0 + L*.3, 0, 0);
+  v.gripA.position.x = key === 'zwei' ? -.16 : key === 'rapier' ? -.06 : key === 'spear' ? .36 : -.08;
+  v.gripB.position.x = key === 'rapier' ? .07 : key === 'spear' ? -.12 : .06;
+  if (key === 'spear') v.base.position.x = B0 + L - .36;
+  if (key === 'kusari'){ v.tip.position.set(.4, .27, 0); v.base.position.set(.34, .04, 0); }
 }
 /* sword trail: a dry-brush stroke that thins out toward its tail */
 /* a finished cut stays in the air for a moment as a dry-brush stroke, then breaks up bristle by bristle */
@@ -3536,6 +3561,8 @@ function tryAttack(f, angle, heavy, opts){
   if (fight() && f.isPlayer) f.stats.atk++;
   return true;
 }
+// a heavy kusarigama blow is the chain: thrown from afar, and on a hit it drags the opponent in
+function chainArm(f){ if (f.atk && f.atk.heavy && f.w.chain && !f.atk.art){ f.atk.chain = true; f.atk.reach = f.w.chain; } }
 function tempo(){ return clamp(1 - .06*G.chain, .66, 1); }
 /* counter-parry: staggered by a parry, you can still meet the riposte, in a tighter window that costs breath */
 function canCounter(f){
@@ -3725,7 +3752,7 @@ function resolve(a, b){
     chamber(b, a); return;
   }
   const incoming = mirror(atk.angle);
-  const tolDeg = S.tol + b.w.tolBonus;
+  const tolDeg = S.tol + b.w.tolBonus - (b.w.close && dist(a, b) < b.w.close ? 12 : 0);   // a spear cannot turn its length inside the guard
   if (b.state === 'parry'){
     const sd = sweepDist(b, incoming), diff = sd.diff;
     const heavyBlocked = b.w.noHeavyParry && atk.heavy;
@@ -3760,7 +3787,8 @@ function hit(a, b, over){
   dmg = Math.round(dmg);
   b.hp = Math.max(0, b.hp - dmg); b.lastHitT = T; b.lagHold = 380;
   const cp = atk.cp ? new THREE.Vector3(atk.cp.x, atk.cp.y, atk.cp.z) : contactPoint(a, b, .8).clone();
-  const kb = dirTo(a, b), kbs = atk.ranged ? 1.2 : atk.heavy ? 7.5 : 4.5;
+  const kb = dirTo(a, b), kbs = atk.ranged ? 1.2 : atk.chain ? -Math.min(11, Math.max(0, dist(a, b) - 1.3)*3.2) : atk.heavy ? 7.5 : 4.5;
+  if (atk.chain && fight()) callout(b.isPlayer ? 'Chained' : 'Pulled in', b.isPlayer ? 'bad' : 'good', b.isPlayer ? 'the sickle is coming' : 'cut now');
   b.vel.x += kb.x*kbs; b.vel.z += kb.z*kbs;
   b.flash = 1; if (!atk.ranged) a.biteT = T;
   // the body is thrown away from the cut: turned, bent and tipped back
@@ -4350,6 +4378,8 @@ const FIN_W = {
   zwei:      { pass:1, behead:2, impale:0, kaishaku:2, cleave:4 },
   rapier:    { pass:1, behead:1, impale:5, kaishaku:1, cleave:0 },
   dual:      { pass:3, behead:3, impale:2, kaishaku:1, cleave:0 },
+  spear:     { pass:2, behead:1, impale:6, kaishaku:1, cleave:0 },
+  kusari:    { pass:2, behead:4, impale:1, kaishaku:2, cleave:0 },
 };
 const FIN_END = { pass:3400, behead:3700, impale:2700, kaishaku:4700, cleave:3500 };
 const BEHEAD_CUT = 230, KAI_CUT = 2470, CLEAVE_LAND = 600;
@@ -4690,6 +4720,8 @@ function dodgeSuccess(b, a, perfect, kind){
    zwei     · Değirmen    — two full low turns. Nothing parries it: jump over, roll or dash out.
    rapier   · Yıldırım    — five thrusts. Parry each; a perfect parry ends it. Duck, dash or roll also work.
    dual     · İkiz Fırtına — four spinning side cuts and a cross. Duck the cuts (or parry each); the cross breaks a normal parry.
+   spear    · Dragon Thrust   — a low sweep, then a driving lunge. Jump or parry the sweep; dash, roll or a perfect parry beats the lunge.
+   kusari   · Coiling Serpent — three lashes of the chain; if one lands, the chain drags you onto the sickle. Duck the lashes.
    Everything here runs in the simulation (deterministic, seeded); only the effects use Math.random. */
 const SP_CHARGE = 700, SP_COST = 30;
 const ARTS = {
@@ -4698,7 +4730,10 @@ const ARTS = {
   zwei:      { name:'Millstone',    kanji:'旋風', dur:1150, rec:680, range:5.2, how:'cannot be parried · jump, roll or dash' },
   rapier:    { name:'Lightning',    kanji:'雷突', dur:1100, rec:430, range:4.6, how:'parry every thrust · a perfect parry ends it' },
   dual:      { name:'Twin Storm',   kanji:'双嵐', dur:1080, rec:470, range:4.8, how:'duck the cuts · the final cross breaks a normal parry' },
+  spear:     { name:'Dragon Thrust', kanji:'龍突', dur:980,  rec:560, range:5.6, how:'jump or parry the sweep · dash or roll out of the lunge' },
+  kusari:    { name:'Coiling Serpent', kanji:'蛇巻', dur:1260, rec:480, range:5.2, how:'duck the chain · caught, only a perfect parry stops the sickle' },
 };
+const SPEAR_SWEEP = 250, SPEAR_LUNGE = 720, KUSARI_T = [210, 440, 670], KUSARI_PULL = 880, KUSARI_CUT = 1080;
 const RAPIER_T = [170, 380, 590, 800, 1010], DUAL_T = [190, 370, 550, 730], DUAL_X = 960;
 const ZWEI_T0 = 180, ZWEI_TURN = 450;
 function startArt(f){
@@ -4739,7 +4774,7 @@ function resolveArt(a, b, sp){
       if (sp.parry === 'block'){ artBlocked(a, b, sp); return 'blocked'; }
       if (sp.parry === 'break'){ artHit(a, b, sp, .5); if (b.state !== 'dead' && b.hp > 0){ b.posture = 100; b.lastPostureT = T; enter(b, 'broken', 1150); b.brokenVuln = true; groundShock(b.pos.x, b.pos.z, RED, 3, 520); Sfx.gong(panOf(b)); if (fight()) callout('Guard broken', b.isPlayer ? 'bad' : 'ember', 'a normal parry cannot hold this'); } return 'broke'; }
       if (sp.parry === 'crush'){ artHit(a, b, sp, .6); if (b.hp > 0) addPosture(b, 38); if (fight() && b.isPlayer) setTiming('<b class="bad">CRUSHED</b>this cannot be parried · jump, roll or dash'); return 'crushed'; }
-      if (fight() && b.isPlayer) setTiming('<b class="bad">NOT ENOUGH</b>only a perfect parry stops the Single Cut');
+      if (fight() && b.isPlayer) setTiming(`<b class="bad">NOT ENOUGH</b>only a perfect parry stops the ${ARTS[a.wkey] ? ARTS[a.wkey].name : 'art'}`);
     }
   }
   artHit(a, b, sp, 1); return 'hit';
@@ -4785,7 +4820,7 @@ function artStep(f, dt){
   const A = f.art; if (!A){ enter(f, 'idle'); return; }
   const o = f.opp, t = f.t, was = t - dt, at = ms => was < ms && t >= ms, k = A.k;
   let dir = A.dir;
-  if (!A.aimed && t >= ({ katana:170, longsword:200, zwei:ZWEI_T0 })[k]){
+  if (!A.aimed && t >= ({ katana:170, longsword:200, zwei:ZWEI_T0, spear:480, kusari:150 })[k]){
     A.aimed = true; const nd = dirTo(f, o), d = dist(f, o); A.dir = { x:nd.x, z:nd.z }; A.s0 = { x:f.pos.x, z:f.pos.z };
     if (k === 'katana'){ A.len = Math.min(7.5, d + 2.1); A.hitAt = Math.max(0, d - .55); }
     if (k === 'longsword'){ const lr = clamp(d - 1.15, 0, 5.2); A.e = { x:f.pos.x + nd.x*lr, z:f.pos.z + nd.z*lr }; }
@@ -4860,6 +4895,33 @@ function artStep(f, dt){
       const r = resolveArt(f, o, { angle:Math.PI/2 + srand(-.1, .1), dmg:22, range:3.1, allow:['roll', 'dash', 'jump'], parry:'break', heavy:true, posture:1.2 });
       const cp = contactPoint(f, o, .75).clone();
       if (r !== 'dodged' && r !== 'miss'){ slashFx(cp, Math.PI/4, RED, true); slashFx(cp, -Math.PI/4, INK, true); }
+    }
+  } else if (k === 'spear'){
+    // a low sweep at the ankles, a coil, and the whole body driven in behind the point
+    if (at(SPEAR_SWEEP - 80)){ Sfx.swing(true, panOf(f)); dustFx(f.pos.x, f.pos.z, 10, 1.2); }
+    if (at(SPEAR_SWEEP)) resolveArt(f, o, { angle:-Math.PI/2 + srand(-.1, .1), dmg:12, range:3.9, allow:['jump', 'roll', 'dash'], parry:'block', heavy:false, posture:.9, blockPosture:14, anyAngle:true });
+    if (t >= 520 && t < SPEAR_LUNGE){
+      const dd = dist(f, o), want = 2.1; if (dd > want){ const st = Math.min(dd - want, 13*dt/1000); f.pos.x += dir.x*st; f.pos.z += dir.z*st; }
+      if (at(520)){ Sfx.dash(panOf(f)); dustFx(f.pos.x, f.pos.z, 8, .2, -dir.x, -dir.z, 2); ghostFx(f, INK, 380); }
+    }
+    if (at(SPEAR_LUNGE)){
+      const r = resolveArt(f, o, { angle:srand(-.4, .4), dmg:32, range:4.2, allow:['roll', 'dash'], parry:'perfect', heavy:true, posture:1.3, anyAngle:true });
+      thrustFx(f, true); if (r === 'hit') issenAfter(o);
+    }
+  } else if (k === 'kusari'){
+    // three lashes of the chain round the body; if one bites, the chain drags them in onto the sickle
+    KUSARI_T.forEach((st, i) => {
+      if (at(st - 90)) Sfx.swing(i === 2, panOf(f));
+      if (at(st)) resolveArt(f, o, { angle:(i % 2 ? Math.PI : 0) + srand(-.1, .1), dmg:8, range:4.9, allow:['duck', 'roll', 'dash', 'jump'], parry:'block', heavy:false, posture:.8, blockPosture:10, duckAny:true });
+    });
+    if (at(KUSARI_PULL)){ A.caught = A.hits > 0 && o.state !== 'dead'; if (A.caught){ enter(o, 'hitstun', 420); Sfx.cloth(panOf(o)); if (fight()) callout(o.isPlayer ? 'Chained' : 'Caught', o.isPlayer ? 'bad' : 'good', o.isPlayer ? 'perfect parry the sickle' : 'reel them in'); } }
+    if (A.caught && t >= KUSARI_PULL && t < KUSARI_CUT && o.state !== 'dead'){
+      const dd = dist(f, o), want = 1.35; if (dd > want){ const nd = dirTo(o, f), st = Math.min(dd - want, 15*dt/1000); o.pos.x += nd.x*st; o.pos.z += nd.z*st; }
+    }
+    if (at(KUSARI_CUT - 120) && A.caught) Sfx.swing(true, panOf(f));
+    if (at(KUSARI_CUT) && A.caught){
+      const r = resolveArt(f, o, { angle:Math.PI/2 + srand(-.2, .2), dmg:24, range:2.6, allow:['roll', 'dash'], parry:'perfect', heavy:true, posture:1.2 });
+      if (r === 'hit'){ const cp = contactPoint(f, o, .75).clone(); slashFx(cp, -Math.PI/5, RED, true); }
     }
   }
   if (f.state === 'art' && f.t >= f.dur){
@@ -4946,11 +5008,22 @@ function artPose(f){
     } else { const q = smooth(clamp((t - (DUAL_X - 170))/170, 0, 1)); o.alpha = Math.PI/2; o.phi = lerp(-95, 210, q)*DEG; o.lean = lerp(.15, -.45, q); o.drop = .1 + .2*q; o.snap = true; }
     for (let j=0;j<DUAL_T.length;j++) o.spin += .5*smooth(clamp((t - (DUAL_T[j] - 170))/170, 0, 1));
   }
+  else if (k === 'spear'){
+    if (t < 170){ const q = easeOut(t/170); o.alpha = -20*DEG; o.phi = lerp(70, -60, q)*DEG; o.drop = .3*q; o.lean = .12*q; }
+    else if (t < 330){ const q = smooth((t - 170)/160); o.alpha = -20*DEG; o.phi = lerp(-60, 200, q)*DEG; o.drop = .36; o.lean = -.1; o.snap = true; o.spin = .35*q; }
+    else if (t < 520){ const q = smooth((t - 330)/190); o.alpha = 90*DEG; o.phi = lerp(200, 72, q)*DEG; o.drop = lerp(.36, .2, q); o.lean = lerp(-.1, .22, q); o.thrust = -.6*q; o.spin = .35*(1 - q); o.snap = true; }
+    else if (t < SPEAR_LUNGE + 60){ const q = easeOut(clamp((t - 520)/(SPEAR_LUNGE - 520), 0, 1)); o.alpha = 90*DEG; o.phi = lerp(72, 88, q)*DEG; o.drop = .2; o.lean = lerp(.22, -.48, q); o.thrust = lerp(-.6, 1.6, q); o.snap = true; }
+    else { const q = smooth(clamp((t - SPEAR_LUNGE - 60)/200, 0, 1)); o.alpha = 90*DEG; o.phi = 88*DEG; o.drop = .2; o.lean = lerp(-.48, -.2, q); o.thrust = lerp(1.6, .6, q); o.snap = true; }
+  } else if (k === 'kusari'){
+    // the sickle held back while the chain works; it comes over in one cut at the end
+    if (t < KUSARI_CUT - 160){ o.alpha = 80*DEG; o.phi = 35*DEG; o.lean = -.08; o.drop = .14; o.spin = .5*Math.sin(Math.PI*clamp(t/(KUSARI_T[2] + 120), 0, 1)); }
+    else { const q = smooth(clamp((t - (KUSARI_CUT - 160))/180, 0, 1)); o.alpha = Math.PI/2; o.phi = lerp(-70, 205, q)*DEG; o.lean = lerp(.12, -.42, q); o.drop = .16; o.snap = true; }
+  }
   return o;
 }
 function artTrail(f){
   const t = f.t, k = f.art ? f.art.k : '';
-  return (k === 'katana' && t > 170 && t < 360) || (k === 'longsword' && t > 600 && t < 740) || (k === 'zwei' && t > ZWEI_T0 && t < ZWEI_T0 + 2*ZWEI_TURN) || (k === 'dual' && t > 40 && t < DUAL_X + 60);
+  return (k === 'spear' && ((t > 170 && t < 340) || (t > 560 && t < SPEAR_LUNGE + 40))) || (k === 'kusari' && f.art.caught && t > KUSARI_CUT - 160 && t < KUSARI_CUT + 40) || (k === 'longsword' && t > 600 && t < 740) || (k === 'zwei' && t > ZWEI_T0 && t < ZWEI_T0 + 2*ZWEI_TURN) || (k === 'dual' && t > 40 && t < DUAL_X + 60);
 }
 
 /* ================= shuriken =================
@@ -5134,7 +5207,7 @@ function stepFighter(f, dt){
         // still holding the button (or a bot choosing to wait): keep the blade up instead of striking
         const hold = (f.human && f.atk.live && f.ctl && f.ctl.lmb && G.phase === 'fight') || (!f.human && f.atk.holdFor > 0);
         if (hold){ enter(f, 'hold', 1500); if (fight() && f.isPlayer) f.stats.holds++; }
-        else { enter(f, 'active', f.w.active); Sfx.swing(f.atk.heavy, panOf(f)); Sfx.atkVoice(f, f.atk.heavy); }
+        else { chainArm(f); enter(f, 'active', f.w.active*(f.atk.chain ? 1.6 : 1)); Sfx.swing(f.atk.heavy, panOf(f)); Sfx.atkVoice(f, f.atk.heavy); }
       }
       break;
     case 'hold': {
@@ -5144,17 +5217,17 @@ function stepFighter(f, dt){
       if (f.atk.heavy && !f.atk.artReady && f.t >= SP_CHARGE && ARTS[f.wkey] && f.breath >= SP_COST){ f.atk.artReady = true; artReadyFx(f); }
       else if (f.atk.heavy && !f.atk.artReady && !f.atk.artNoBreath && f.t >= SP_CHARGE && ARTS[f.wkey]){ f.atk.artNoBreath = true; if (fight() && f.isPlayer) callout('Not enough breath', 'bad', 'a normal heavy blow will come out'); }
       if (release && !f.atk.artReady && fight() && f.isPlayer && ARTS[f.wkey] && f.t < SP_CHARGE && f.t >= 120) setTiming(`<b class="mid">${f.atk.heavy ? 'HEAVY' : 'HELD'}</b>hold until the ring turns gold for your art`);
-      if (release || f.t >= f.dur){ if (!(f.atk.artReady && startArt(f))){ enter(f, 'active', f.w.active); Sfx.swing(f.atk.heavy, panOf(f)); Sfx.atkVoice(f, f.atk.heavy); } }
+      if (release || f.t >= f.dur){ if (!(f.atk.artReady && startArt(f))){ chainArm(f); enter(f, 'active', f.w.active*(f.atk.chain ? 1.6 : 1)); Sfx.swing(f.atk.heavy, panOf(f)); Sfx.atkVoice(f, f.atk.heavy); } }
       break;
     }
     case 'active': {
       const o = f.opp, d = dist(f, o);
-      if (d > 1.05){ const dir = dirTo(f, o), step = f.w.lunge * dt / f.w.active; f.pos.x += dir.x*step; f.pos.z += dir.z*step; }
+      if (d > 1.05 && !f.atk.chain){ const dir = dirTo(f, o), step = f.w.lunge * dt / f.w.active; f.pos.x += dir.x*step; f.pos.z += dir.z*step; }
       // contact happens once the edge has come round to the front, not the moment the swing starts
       if (!f.atk.resolved && f.t >= f.dur*CONTACT && dist(f, o) <= f.w.reach + .3 + (f.atk.reach || 0)) resolve(f, o);
       if (f.state === 'active' && f.t >= f.dur){
         const whiff = !f.atk.contact;
-        enter(f, 'recovery', f.w.recovery * S.speed * (whiff ? 1.35 : 1));
+        enter(f, 'recovery', f.w.recovery * S.speed * (whiff ? 1.35 : 1) * (f.atk.chain && !whiff ? .5 : 1));   // a chain that bites is already reeling in
         if (whiff && fight() && f.isPlayer && !f.atk.dodged) setTiming('<b class="bad">MISS</b>out of reach · longer recovery');
       }
       break;
@@ -5336,6 +5409,8 @@ function botThink(b, br, D){
       else if (k === 'zwei') br.artQ.push({ type:'roll', at:T0 + ZWEI_T0 + ZWEI_TURN*.62 - ROLL_IF0 - 60, dir:away });
       else if (k === 'rapier') for (const st of RAPIER_T) br.artQ.push({ type:'parry', at:T0 + st - S.window*(Math.random() < D.parry*.5 ? .72 : .35) });
       else if (k === 'dual') br.artQ.push({ type:'duck', at:T0 + DUAL_T[0] - 120, until:T0 + DUAL_T[3] + 50 }, { type:'roll', at:T0 + DUAL_X - ROLL_IF0 - 50, dir:sideDir });
+      else if (k === 'spear') br.artQ.push({ type:'roll', at:T0 + SPEAR_SWEEP - ROLL_IF0 - 40, dir:sideDir }, { type:'dash', at:T0 + SPEAR_LUNGE - 60, dir:sideDir });
+      else if (k === 'kusari') br.artQ.push({ type:'duck', at:T0 + KUSARI_T[0] - 120, until:T0 + KUSARI_T[2] + 60 }, { type:'roll', at:T0 + KUSARI_CUT - ROLL_IF0 - 50, dir:sideDir });
     }
   }
   if (p.state !== 'art') br.artQ = null;
@@ -5496,6 +5571,7 @@ function botThink(b, br, D){
   const fw = dirTo(b, p), rt = { x:-fw.z, z:fw.x }, pref = b.w.reach*.78;
   let radial = 0;
   if (d > pref + .5) radial = 1; else if (d < pref - .6) radial = -.8;
+  if (b.w.thrust && d < b.w.close + .5) radial = -1;
   if (br.artWant){ const lo = Math.max(2.4, p.w.reach + .9), hi = ARTS[b.wkey].range - .7; radial = d < lo ? -1 : d > hi ? 1 : 0; }
   if (p.state === 'windup' && !br.plan && d < p.w.reach + .4 && b.state === 'idle') radial = Math.min(radial, -.5);
   // a heavy blow being held (maybe an art gathering): don't walk into it, wait for it with the answer ready
@@ -5505,6 +5581,14 @@ function botThink(b, br, D){
   const l = Math.hypot(vx, vz); if (l > 1){ vx /= l; vz /= l; }
   b.moveIn.x = vx; b.moveIn.z = vz;
   if (b.state === 'idle' && d > pref + 3 && Math.random() < .01) tryDash(b, fw);
+  if (b.w.chain && b.state === 'idle' && !br.plan && d > b.w.reach + .5 && d < b.w.reach + b.w.chain - .2 && Math.random() < .02*D.aggr) tryAttack(b, pickAngle(p, Math.random), true);
+  // the chain bit: the sickle follows them in
+  if (b.w.chain && b.state === 'idle' && p.state === 'hitstun' && b.atk && b.atk.chain && b.atk.contact && br.chainSid !== b.atk){ br.chainSid = b.atk; tryAttack(b, pickAngle(p), false); }
+  // the spear: keep them out at the point. Thrust as they step into its reach, give ground when they get inside it.
+  if (b.w.thrust && b.state === 'idle' && !br.plan){
+    if (d <= b.w.reach + .15 && d > p.w.reach + .2 && Math.random() < .06*D.aggr) tryAttack(b, pickAngle(p), false);
+    else if (d < b.w.close && Math.random() < .025*D.aggr) tryDash(b, norm(-fw.x + rt.x*(Math.random() < .5 ? .5 : -.5), -fw.z + rt.z*(Math.random() < .5 ? .5 : -.5)));
+  }
   // now and then, over the top
   else if (b.state === 'idle' && !DOJO.on && d < 3.1 && d > 1.5 && b.breath > 45 && Math.random() < .0025) tryFlip(b, fw);
 }
@@ -5637,6 +5721,15 @@ function poseFighter(f, dt, now){
     case 'artRecover': { const q = smooth(u); alpha = lerpAng(a ? a.angle : 0, f.guardAngle, q); phi = lerp(210, 55, q)*DEG; lean = lerp(-.3, 0, q); drop = lerp(.2, 0, q); break; }
     case 'fin': case 'finVictim': { const o = finisherPose(f); alpha = o.alpha; phi = o.phi; lean = o.lean; drop = o.drop; twist = o.twist || 0; snap = true; direct = true; break; }
   }
+  // the spear: carried level, every blow a thrust. It draws back through the windup and drives forward through the strike;
+  // the head leans toward the side the blow comes from, which is the angle the defender has to meet.
+  v.atkThrust = 0;
+  if (f.w && f.w.thrust){
+    if (a && !a.art && (f.state === 'windup' || f.state === 'hold')){ const q = f.state === 'hold' ? 1 : easeOut(u); alpha = a.angle; phi = lerp(70, a.heavy ? 56 : 63, q)*DEG; v.atkThrust = -(a.heavy ? .62 : .4)*q; lean = (a.heavy ? .2 : .08)*q; drop = (a.heavy ? .08 : .03)*q; }
+    else if (a && !a.art && f.state === 'active'){ const q = easeOut(Math.min(1, u*1.7)); alpha = a.angle; phi = lerp(a.heavy ? 56 : 63, 86, q)*DEG; v.atkThrust = lerp(a.heavy ? -.62 : -.4, a.heavy ? 1.5 : 1.2, q); lean = a.heavy ? -.34 : -.26; drop = a.heavy ? .1 : .05; snap = true; }
+    else if (a && !a.art && f.state === 'recovery'){ const q = smooth(u); alpha = lerpAng(a.angle, f.guardAngle, q); phi = lerp(86, 70, q)*DEG; v.atkThrust = lerp(1.2, 0, q); lean = lerp(-.26, 0, u); }
+    else if (f.state === 'idle' || f.state === 'crouch' || f.state === 'dash' || f.state === 'jump') phi = Math.max(phi, 70*DEG);
+  }
   // flourish: integrate the spin, let it slow, then settle the blade back to the nearest full turn
   /* flourish: the blade spins round the right hand in the plane beside the body. Gravity pulls the tip down, so it
      speeds up on the way down and labours over the top; a weak flick swings like a pendulum and the wrist catches it.
@@ -5693,7 +5786,7 @@ function poseFighter(f, dt, now){
   P.lean = direct ? lean : lerp(P.lean, lean, f.state === 'active' ? kf : k); P.drop = direct ? drop : lerp(P.drop, drop, k);
   P.off = lerp(P.off, off, fast ? kf : k);
   if (f.state !== 'art'){ v.artThrust = 0; v.artSpin = 0; }
-  const og = f.state === 'qte' ? (f.qteParry || 0) : f.parryAngle, shv = (G.phase === 'intro' || G.phase === 'finisher') ? (f.sheath || 0) : 0, thrust = (f.thrust || 0) + (v.artThrust || 0);
+  const og = f.state === 'qte' ? (f.qteParry || 0) : f.parryAngle, shv = (G.phase === 'intro' || G.phase === 'finisher') ? (f.sheath || 0) : 0, thrust = (f.thrust || 0) + (v.artThrust || 0) + (v.atkThrust || 0);
   const flA = canAct(f) ? (f.twHold || 0) : 0, thF = 38*DEG + (f.twAng || 0), sw = Math.min(1, Math.abs(f.twVel || 0)/18)*flA;
   const fl2 = .22*flA;
   v.rig.position.set(v.rigBase.x + Math.cos(og)*.26*P.off - .2*shv + fl2, v.rigBase.y + Math.sin(og)*.22*P.off - .28*shv - Math.cos(thF)*.05*sw, v.rigBase.z - .06*P.off + .16*shv - .32*thrust + Math.sin(thF)*.05*sw);
@@ -5885,15 +5978,78 @@ function poseFighter(f, dt, now){
     v.weapon.getWorldQuaternion(_wq1); v.body.getWorldQuaternion(_wq2); _wq2.invert().multiply(_wq1);
     v.weapon2.quaternion.set(_wq2.x, -_wq2.y, -_wq2.z, _wq2.w);
     v.weapon.getWorldPosition(_wp1); v.body.worldToLocal(_wp1); v.weapon2.position.set(-_wp1.x, _wp1.y, _wp1.z);
-  } else { v.gripA.getWorldPosition(_a); v.body.worldToLocal(_a); if (flA > .01) _a.lerp(LEFT_REST, flA); if (f.state === 'throw') _a.copy(throwArm(f, f.t/Math.max(1, f.dur))); }
+  } else if (f.w && f.w.chain){ chainHand(f, _a, now); if (f.state === 'throw') _a.copy(throwArm(f, f.t/Math.max(1, f.dur))); }
+  else { v.gripA.getWorldPosition(_a); v.body.worldToLocal(_a); if (flA > .01) _a.lerp(LEFT_REST, flA); if (f.state === 'throw') _a.copy(throwArm(f, f.t/Math.max(1, f.dur))); }
   placeArm(v.armL, v.foreL, v.elbowL, SH_L, _a, -1); v.handL.position.copy(_a);
   placeArm(v.armR, v.foreR, v.elbowR, SH_R, _b, 1); v.handR.position.copy(_b);
+  if (f.w && f.w.chain) updateChain(f, _a, now); else if (v.chain) v.chain.group.visible = false;
   if (dt > 0) updateTrail(f);
   f.prevAlpha = P.alpha; f.prevPhi = P.phi;
   stepOutfit(f, dt, now);
   placeBlob(f);
   if (v.faceTex && v.faceMat){ const fk = faceFor(f); if (fk !== v.faceKey){ v.faceKey = fk; v.faceMat.map = v.faceTex[fk]; } }
   updateScarf(f, dt);
+}
+/* ---- the kusarigama chain: links drawn from the left hand to the weight. Where the weight is comes from the fighter's
+   state: hanging and swaying, whirling over the head through a heavy windup, flying out to the opponent on a throw,
+   lashing round the body in the art. Visual only. ---- */
+const CHAIN_N = 22, _chH = new THREE.Vector3(), _chW = new THREE.Vector3(), _chP = new THREE.Vector3(), _chQ = new THREE.Vector3(), _chM = new THREE.Matrix4(), _chR = new THREE.Quaternion(), _chR2 = new THREE.Quaternion(), _chX = new THREE.Vector3(1, 0, 0), _chS = new THREE.Vector3(1, 1, 1);
+function makeChain(){
+  const group = new THREE.Group(); scene.add(group);
+  const links = new THREE.InstancedMesh(new THREE.TorusGeometry(.022, .006, 4, 8), toon(0x3A3631), CHAIN_N); links.castShadow = true; links.frustumCulled = false; group.add(links);
+  const weight = new THREE.Mesh(new THREE.CylinderGeometry(.034, .04, .1, 8), toon(0x2A2622)); weight.castShadow = true; group.add(weight); outline(weight, .006);
+  return { group, links, weight, last:new THREE.Vector3(), has:false };
+}
+function chainHand(f, out, now){
+  const a = f.atk, st = f.state, sway = Math.sin(now*.004 + (f.isPlayer ? 0 : 1.3));
+  out.set(-.3, .3 + .02*sway, -.24);
+  if (a && a.heavy && !a.art && (st === 'windup' || st === 'hold')) out.set(-.34, .8, -.06);
+  else if (st === 'active' && a && a.chain){ const q = easeOut(Math.min(1, f.t/Math.max(1, f.dur)*2)); out.set(lerp(-.34, -.12, q), lerp(.8, .5, q), lerp(-.06, -.52, q)); }
+  else if (st === 'art' && f.art && f.art.k === 'kusari') out.set(-.3 + .08*Math.sin(f.t*.02), .62, -.3);
+  return out;
+}
+function updateChain(f, handLocal, now){
+  const v = f.v; if (!v.chain) v.chain = makeChain();
+  const C = v.chain, o = f.opp, a = f.atk, st = f.state;
+  C.group.visible = true;
+  _chH.copy(handLocal); v.body.localToWorld(_chH);
+  const hang = (out) => out.set(_chH.x + Math.sin(now*.003)*.06, _chH.y - .44, _chH.z + Math.cos(now*.0026)*.05);
+  let taut = false;
+  if (a && a.heavy && !a.art && (st === 'windup' || st === 'hold')){
+    // whirling over the head: a circle in the body's side plane, faster as the throw nears
+    const th = now*(st === 'hold' ? .03 : .022) + (f.isPlayer ? 0 : 2);
+    _chW.set(-.34 + Math.cos(th)*.55, 1.05 + Math.sin(th)*.55, -.06 + Math.sin(th*.5)*.12); v.body.localToWorld(_chW); taut = true;
+  } else if (st === 'active' && a && a.chain){
+    const q = easeOut(Math.min(1, f.t/Math.max(1, f.dur)*1.5)), reach = f.w.reach + f.w.chain + .3;
+    _chP.set(o.pos.x, 1.2, o.pos.z); const dd = _chP.distanceTo(_chH), k = Math.min(1, reach/Math.max(.01, dd));
+    _chW.copy(_chH).lerp(_chP, k*q); taut = true;
+  } else if (st === 'recovery' && a && a.chain){
+    hang(_chP); const q = smooth(Math.min(1, f.t/Math.max(1, f.dur)*1.8)); _chW.copy(C.last).lerp(_chP, q);
+  } else if (st === 'art' && f.art && f.art.k === 'kusari'){
+    const t = f.t, A = f.art, dd = Math.min(4.6, dist(f, o) + .2), ang = Math.atan2(o.pos.z - f.pos.z, o.pos.x - f.pos.x);
+    if (A.caught && t >= KUSARI_PULL && t < KUSARI_CUT + 80){ _chW.set(o.pos.x, 1.2, o.pos.z); taut = true; }
+    else if (t < KUSARI_T[2] + 150){
+      // each lash passes through the opponent's bearing at its strike time, alternating sides
+      let i = KUSARI_T.findIndex(s => t < s + 115); if (i < 0) i = KUSARI_T.length - 1;
+      const s0 = KUSARI_T[i], sg = i % 2 ? -1 : 1, q = clamp((t - (s0 - 115))/230, 0, 1), th = ang + sg*lerp(-1.6, 1.6, q);
+      const r = lerp(.9, dd, Math.sin(Math.PI*clamp((t - 80)/(KUSARI_T[2] + 70 - 80), 0, 1))*.4 + .6);
+      _chW.set(f.pos.x + Math.cos(th)*r, .95 + .25*Math.sin(Math.PI*q), f.pos.z + Math.sin(th)*r); taut = true;
+    } else hang(_chW);
+  } else hang(_chW);
+  C.last.copy(_chW);
+  // the links: a straight run when taut, a slack sag otherwise
+  const L = _chH.distanceTo(_chW), sag = taut ? .03*L : Math.max(0, .55 - L)*.4;
+  const pt = (s, out) => out.copy(_chH).lerp(_chW, s).setY(_chH.y + (_chW.y - _chH.y)*s - sag*Math.sin(Math.PI*s));
+  for (let i=0;i<CHAIN_N;i++){
+    const s = (i + .5)/CHAIN_N; pt(s, _chP); pt(Math.min(1, s + .02), _chQ); _chQ.sub(_chP);
+    if (_chQ.lengthSq() < 1e-8) _chQ.set(0, -1, 0);
+    _chR.setFromUnitVectors(_chX, _chQ.normalize()); _chR2.setFromAxisAngle(_chX, (i % 2) ? Math.PI/2 : 0); _chR.multiply(_chR2);
+    const sc = Math.max(.6, Math.min(1.6, L/CHAIN_N/.034)); _chS.set(sc, 1, 1);
+    _chM.compose(_chP, _chR, _chS); C.links.setMatrixAt(i, _chM);
+  }
+  C.links.instanceMatrix.needsUpdate = true;
+  C.weight.position.copy(_chW); pt(.97, _chQ); _chQ.sub(_chW).multiplyScalar(-1);
+  if (_chQ.lengthSq() > 1e-8){ _chR.setFromUnitVectors(new THREE.Vector3(0, 1, 0), _chQ.normalize()); C.weight.quaternion.copy(_chR); }
 }
 // shoulder S to hand H with an elbow between: upper arm UA, forearm FA. The elbow bends toward a pole below, outside
 // and behind the arm; if the hand is out of reach the arm straightens (and stretches a touch rather than let go).
