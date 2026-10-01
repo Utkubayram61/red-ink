@@ -508,7 +508,7 @@ const q3 = x => Math.round(x*1000)/1000;
    that is not strongly saturated onto a paper-to-ink ramp, so only red (blood, danger) and gold (perfect moments) survive. */
 const PAPER = 0xECE4D2, INK = 0x15130F, RED = 0xC8372B, GOLD = 0xC9A24A, WASH = 0x9A9285, PAPER_HI = 0xFFFBF0;
 const canvas = $('#gl');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:!THREE.EffectComposer, powerPreference:'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -549,16 +549,16 @@ const InkShader = {
        neighbourhoods), the way a painter lays in a surface with a few strokes instead of a gradient */
     vec3 kuwa(vec2 uv){
       vec3 m0 = vec3(0.0), m1 = vec3(0.0), m2 = vec3(0.0), m3 = vec3(0.0), s0 = vec3(0.0), s1 = vec3(0.0), s2 = vec3(0.0), s3 = vec3(0.0);
-      vec2 st = 1.5/uRes;
-      for (int j=-3;j<=3;j++) for (int i=-3;i<=3;i++){
+      vec2 st = 2.0/uRes;
+      for (int j=-2;j<=2;j++) for (int i=-2;i<=2;i++){
         vec3 c = texture2D(tDiffuse, uv + vec2(float(i), float(j))*st).rgb, c2 = c*c;
         if (i <= 0 && j <= 0){ m0 += c; s0 += c2; }
         if (i >= 0 && j <= 0){ m1 += c; s1 += c2; }
         if (i <= 0 && j >= 0){ m2 += c; s2 += c2; }
         if (i >= 0 && j >= 0){ m3 += c; s3 += c2; }
       }
-      m0 /= 16.0; m1 /= 16.0; m2 /= 16.0; m3 /= 16.0;
-      vec3 v0 = s0/16.0 - m0*m0, v1 = s1/16.0 - m1*m1, v2 = s2/16.0 - m2*m2, v3 = s3/16.0 - m3*m3;
+      m0 /= 9.0; m1 /= 9.0; m2 /= 9.0; m3 /= 9.0;
+      vec3 v0 = s0/9.0 - m0*m0, v1 = s1/9.0 - m1*m1, v2 = s2/9.0 - m2*m2, v3 = s3/9.0 - m3*m3;
       float q0 = v0.r + v0.g + v0.b, q1 = v1.r + v1.g + v1.b, q2 = v2.r + v2.g + v2.b, q3 = v3.r + v3.g + v3.b;
       vec3 r = m0; float q = q0;
       if (q1 < q){ q = q1; r = m1; } if (q2 < q){ q = q2; r = m2; } if (q3 < q){ r = m3; }
@@ -1580,7 +1580,7 @@ function repaintFighters(){
   }
 }
 function setColorMode(on){ setStyle(on ? (S.style === 'ink' ? 'color' : S.style) : 'ink'); }
-function setStyle(st){ S.style = st; S.color = st !== 'ink'; save(); paintArena(); repaintFighters(); }
+function setStyle(st){ S.style = st; S.color = st !== 'ink'; save(); paintArena(); repaintFighters(); try { if (W) resize(); } catch(e){} }
 // the opening shot of a match: bring a gust (and on the bridge, the first stroke of lightning) on cue
 function arenaCue(){ if (!AR.g) return; AR.g.next = AR.clock + 700; if (AR.storm) AR.storm.next = AR.clock + 1900; }
 function arenaClamp(f){
@@ -6721,21 +6721,35 @@ $('#copyBtn').addEventListener('click', () => {
 (() => { const m = /[#&](?:room|oda)=([A-Za-z0-9]{4,8})/.exec(location.hash || ''); if (m){ $('#joinCode').value = m[1].toUpperCase(); setTimeout(() => joinRoom(m[1]), 400); } })();
 
 /* ================= loop ================= */
-/* if the machine struggles, quietly render the ink pass at a lower resolution */
-const PERF = { pr:1.5, ema:16, slowT:0 };
+/* Resolution. Every pass runs once per rendered pixel, and a full-screen window on a retina or 1440p screen holds four
+   to eight times the pixels of a small one, so the render has a pixel budget (smaller for the heavier painted look) and
+   the canvas is stretched up to the window. If the machine still struggles the scale steps down, a little at a time,
+   and creeps back up when there is room again, never above a level that was already too slow. */
+const PERF = { k:1, ceil:1.6, ema:16, slowT:0, fastT:0 };
+const PIX_BUDGET = { ink:2.6e6, color:2.6e6, painted:1.8e6 };
+function renderScale(){
+  const budget = PIX_BUDGET[S.style] || 2.2e6;
+  return Math.max(.5, Math.min(DPR, 1.5, Math.sqrt(budget/(W*H)))*PERF.k);
+}
 function watchPerf(rdt){
   if (G.paused || rdt <= 0) return;
   PERF.ema += (Math.min(rdt, 100) - PERF.ema)*.05;
-  PERF.slowT = PERF.ema > 26 ? PERF.slowT + rdt : 0;
-  // a struggling machine first gives up the multisampling, then resolution
-  if (PERF.slowT > 2500 && composer && composer.msaa && composer.msaa.samples > 0){ for (const rt of [composer.renderTarget1, composer.renderTarget2]) if (rt.samples){ rt.samples = 0; rt.dispose(); } PERF.slowT = 0; return; }
-  if (PERF.slowT > 2500 && PERF.pr > .75){ PERF.pr = PERF.pr > 1 ? 1 : .75; PERF.slowT = 0; resize(); }
+  PERF.slowT = PERF.ema > 20 ? PERF.slowT + rdt : 0;       // under ~50 fps
+  PERF.fastT = PERF.ema < 13 ? PERF.fastT + rdt : 0;       // comfortably over 75 fps
+  if (PERF.slowT > 2000){
+    PERF.slowT = 0; PERF.ceil = Math.min(PERF.ceil, PERF.k);
+    // a struggling machine first gives up the multisampling, then resolution
+    if (composer && composer.msaa && composer.msaa.samples > 0){ for (const rt of [composer.renderTarget1, composer.renderTarget2]) if (rt.samples){ rt.samples = 0; rt.dispose(); } return; }
+    if (PERF.k > .45){ PERF.k = Math.max(.45, PERF.k*.82); PERF.ceil = PERF.k; resize(); }
+  }
+  if (PERF.fastT > 6000 && PERF.k < PERF.ceil){ PERF.fastT = 0; PERF.k = Math.min(PERF.ceil, PERF.k/.9); resize(); }
 }
 function resize(){
   const r = $('#app').getBoundingClientRect();
   W = Math.max(1, r.width); H = Math.max(1, r.height); DPR = Math.min(window.devicePixelRatio || 1, 2);
-  renderer.setSize(W, H, false); camera.aspect = W/H; camera.updateProjectionMatrix();
-  if (composer){ const pr = Math.min(DPR, PERF.pr); composer.setPixelRatio(pr); composer.setSize(W, H); gradePass.uniforms.uRes.value.set(W*pr, H*pr); if (ndTarget) ndTarget.setSize(Math.round(W*pr), Math.round(H*pr)); }
+  const pr = composer ? renderScale() : Math.min(DPR, 1.5);
+  renderer.setPixelRatio(pr); renderer.setSize(W, H, false); camera.aspect = W/H; camera.updateProjectionMatrix();
+  if (composer){ composer.setPixelRatio(pr); composer.setSize(W, H); gradePass.uniforms.uRes.value.set(W*pr, H*pr); if (ndTarget) ndTarget.setSize(Math.round(W*pr), Math.round(H*pr)); }
   hud.width = Math.round(W*DPR); hud.height = Math.round(H*DPR);
   kjCanvas.width = Math.round(W*DPR); kjCanvas.height = Math.round(H*DPR); for (const k of KJ) k.cache = null;
 }
