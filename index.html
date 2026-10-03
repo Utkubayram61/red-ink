@@ -664,10 +664,10 @@ const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: r
 const WEAPONS = {
   katana:   { name:'Katana', tag:'Fast and precise', windL:335, windH:640, active:100, recovery:310, dmgL:14, dmgH:25, reach:2.2, lunge:.5, len:1.0, width:.042, move:1.05, riposteMul:1.9, feintFrac:.5, feintCost:1, tolBonus:0, hyper:false, noHeavyParry:false, posture:1, guard:'disc', mass:1, plus:'Highest riposte damage (x1.9)', minus:'Short reach' },
   longsword:{ name:'Longsword', tag:'Balanced', windL:400, windH:720, active:110, recovery:380, dmgL:17, dmgH:29, reach:2.5, lunge:.5, len:1.15, width:.05, move:1, riposteMul:1.5, feintFrac:.5, feintCost:1, tolBonus:10, hyper:false, noHeavyParry:false, posture:1, guard:'cross', mass:1.05, plus:'Wider parry angle (+10°)', minus:'Master of nothing' },
-  zwei:     { name:'Zweihänder', tag:'Heavy and slow', windL:490, windH:960, active:140, recovery:540, dmgL:25, dmgH:44, reach:3.0, lunge:.35, len:1.5, width:.064, move:.85, riposteMul:1.4, feintFrac:.45, feintCost:1.2, tolBonus:0, hyper:true, noHeavyParry:false, posture:1.5, guard:'cross', mass:1.3, plus:'Hyper armor on heavy attacks, big posture damage', minus:'Long recovery, slow feet' },
+  zwei:     { name:'Zweihänder', tag:'Heavy and slow', windL:470, windH:960, active:140, recovery:500, dmgL:25, dmgH:44, reach:3.0, lunge:.35, len:1.5, width:.064, move:.85, riposteMul:1.4, feintFrac:.45, feintCost:1.2, tolBonus:0, hyper:true, noHeavyParry:false, posture:1.5, guard:'cross', mass:1.3, plus:'Hyper armor on heavy attacks, big posture damage', minus:'Long recovery, slow feet' },
   dual:     { name:'Twin Blades', tag:'Two blades, one dance', windL:320, windH:560, active:90, recovery:290, dmgL:10, dmgH:19, reach:2.05, lunge:.6, len:.84, width:.036, move:1.12, riposteMul:1.6, feintFrac:.6, feintCost:.8, tolBonus:-5, hyper:false, noHeavyParry:false, posture:.85, guard:'disc', mass:.8, comboMax:4, plus:'4-hit combo, fastest windup', minus:'Short reach, low damage, narrow parry angle' },
-  rapier:   { name:'Rapier', tag:'Reach and feints', windL:345, windH:560, active:100, recovery:330, dmgL:10, dmgH:18, reach:2.8, lunge:0.6, len:1.3, width:.018, move:1.1, riposteMul:1.6, feintFrac:.7, feintCost:.5, tolBonus:0, hyper:false, noHeavyParry:true, posture:1, guard:'cup', mass:.85, plus:'Cheap, late feints', minus:'Cannot parry heavy attacks' },
-  spear:    { name:'Spear', tag:'Keep them at the point', windL:400, windH:700, active:120, recovery:460, dmgL:13, dmgH:22, reach:3.15, lunge:0.6, len:1.83, width:.05, move:.95, riposteMul:1.5, feintFrac:.55, feintCost:.9, tolBonus:0, hyper:false, noHeavyParry:false, posture:1.1, guard:'cross', mass:1.15, thrust:true, close:1.6, plus:'Longest reach · every blow is a thrust', minus:'Up close (under 1.6 m) the parry angle narrows' },
+  rapier:   { name:'Rapier', tag:'Reach and feints', windL:355, windH:560, active:100, recovery:330, dmgL:9, dmgH:18, reach:2.7, lunge:0.6, len:1.3, width:.018, move:1.1, riposteMul:1.6, feintFrac:.7, feintCost:.5, tolBonus:0, hyper:false, noHeavyParry:true, posture:1, guard:'cup', mass:.85, plus:'Cheap, late feints', minus:'Cannot parry heavy attacks' },
+  spear:    { name:'Spear', tag:'Keep them at the point', windL:400, windH:700, active:120, recovery:430, dmgL:14, dmgH:24, reach:3.25, lunge:0.6, len:1.83, width:.05, move:.95, riposteMul:1.5, feintFrac:.55, feintCost:.9, tolBonus:0, hyper:false, noHeavyParry:false, posture:1.1, guard:'cross', mass:1.15, thrust:true, close:1.6, plus:'Longest reach · every blow is a thrust', minus:'Up close (under 1.6 m) the parry angle narrows' },
   kusari:   { name:'Kusarigama', tag:'Chain and sickle', windL:300, windH:640, active:100, recovery:320, dmgL:12, dmgH:16, reach:2.0, lunge:.6, len:.2, width:.04, move:1.1, riposteMul:1.7, feintFrac:.6, feintCost:.8, tolBonus:-4, hyper:false, noHeavyParry:true, posture:.9, guard:'disc', mass:.8, chain:2.5, plus:'Heavy attack throws the chain from afar and pulls them in', minus:'Short sickle · narrow parry · cannot parry heavy blows' },
 };
 const MAX_HP = 200;   // twice the original pool: longer duels, more exchanges before the finisher
@@ -2516,12 +2516,12 @@ const Sfx = (function(){
      Continuous layers built from long noise loops, each through its own filters. The gust envelope from the arena
      drives the wind's loudness and pitch every few frames; a flash of lightning is followed, later, by its thunder. */
   const AMBP = {
-    avlu:  { wind:.07, howl:0.048, rustle:.012, drone:[55, .018], crick:.01, bell:[26, 40, .5], chime:0 },
-    otlak: { wind:.1, howl:0.08, rustle:.05, drone:[49, .018], crick:.016, bell:0, chime:0 },
-    kar:   { wind:.06, howl:0.12, rustle:0, drone:[41.2, .026], crick:0, bell:[18, 28, .9], chime:0 },
-    kopru: { wind:.11, howl:0.14, rustle:0, rain:.13, river:.08, drone:[43.65, .022], crick:0, bell:0, chime:0 },
-    bambu: { wind:.06, howl:0.032, rustle:.03, drone:[58.27, .016], crick:.03, bell:0, chime:0, knock:1 },
-    gul:   { wind:.14, howl:0.16, rustle:.06, drone:[46.25, .02], crick:0, bell:0, chime:1 },
+    avlu:  { wind:0, howl:0, rustle:.012, drone:[55, .018], crick:.01, bell:[26, 40, .5], chime:0 },
+    otlak: { wind:0, howl:0, rustle:.05, drone:[49, .018], crick:.016, bell:0, chime:0 },
+    kar:   { wind:0, howl:0, rustle:0, drone:[41.2, .026], crick:0, bell:[18, 28, .9], chime:0 },
+    kopru: { wind:0, howl:0, rustle:0, rain:.13, river:.08, drone:[43.65, .022], crick:0, bell:0, chime:0 },
+    bambu: { wind:0, howl:0, rustle:.03, drone:[58.27, .016], crick:.03, bell:0, chime:0, knock:1 },
+    gul:   { wind:0, howl:0, rustle:.06, drone:[46.25, .02], crick:0, bell:0, chime:1 },
   };
   const AMB = { want:null, key:null, bus:null, L:{}, stop:[], tick:0, nextBell:0, nextChime:0, nextKnock:0 };
   let noiseLong = null, brownLong = null, crickBuf = null;
@@ -2556,7 +2556,7 @@ const Sfx = (function(){
     const t = ac.currentTime, bus = ac.createGain(); bus.gain.setValueAtTime(.0001, t); bus.gain.linearRampToValueAtTime(1, t + 2.5); bus.connect(out); AMB.bus = bus;
     const L = AMB.L;
     // wind: a broad low roar and, above it, the whistle of air round edges
-    { const f = filt('lowpass', 420, .6), g = gainN(P.wind); chain(src(brownLong), f, g, bus); L.wind = { f, g, v:P.wind };
+    if (P.wind){ const f = filt('lowpass', 420, .6), g = gainN(P.wind); chain(src(brownLong), f, g, bus); L.wind = { f, g, v:P.wind };
       const f2 = filt('bandpass', 700, 1.2), g2 = gainN(P.wind*.5); chain(src(noiseLong), f2, g2, bus); L.wind2 = { f:f2, g:g2 }; }
     if (P.howl){ const f = filt('bandpass', 900, 9), g = gainN(P.howl), f2 = filt('bandpass', 1350, 12), g2 = gainN(P.howl*.6);
       chain(src(noiseLong), f, g, bus); chain(src(noiseLong), f2, g2, bus); L.howl = { f, g, f2, g2, v:P.howl }; }
@@ -5677,6 +5677,23 @@ function botThink(b, br, D){
       }
     }
   }
+  /* tempo. A duelist does not swing all the time: they measure (circle just outside the other's reach, turn the blade
+     over, shift the guard, test the distance with half a step) and then press (close in and attack). An exchange that
+     ends, a hit or a clash, sends them back to measuring. Defence, punishes, ripostes and rally counters never wait. */
+  if (!br.mood || T > br.moodUntil){
+    const toMeasure = br.mood !== 'measure';
+    br.mood = toMeasure ? 'measure' : 'press';
+    br.moodUntil = T + (toMeasure ? rand(2200, 4200)/Math.sqrt(D.aggr) : rand(1400, 2600)*Math.sqrt(D.aggr));
+    if (toMeasure){ br.twirlAt = T + rand(400, 1300); br.probeAt = T + rand(700, 1600); }
+    else br.nextAtk = Math.min(br.nextAtk || 0, T + rand(150, 500));
+  }
+  { const hitNow = Math.max(b.lastHitT || -1e9, p.lastHitT || -1e9, G.lastClashT || -1e9);
+    if (br.mood === 'press' && T - hitNow < 60 && br.exSeen !== hitNow){ br.exSeen = hitNow; br.moodUntil = Math.min(br.moodUntil, T + rand(350, 800)); } }
+  // they walked into reach while we measured: sometimes take the chance
+  if (br.mood === 'measure' && b.state === 'idle' && d <= b.w.reach - .15 && br.inSeen !== p.sid && Math.random() < .02*D.aggr){ br.inSeen = p.sid; br.mood = 'press'; br.moodUntil = T + rand(900, 1600); br.nextAtk = T + rand(60, 200); }
+  const pressing = br.mood === 'press';
+  // measuring: turn the blade over in the hand now and then
+  if (!pressing && b.state === 'idle' && T > (br.twirlAt || 0)){ br.twirlAt = T + rand(1500, 3200); const dir = Math.random() < .5 ? 1 : -1; twirlKick(b, dir); if (Math.random() < .5) twirlKick(b, dir); }
   // offense
   if (b.state === 'idle' && !br.plan){
     const vuln = VULN.has(p.state) || (p.state === 'roll' && p.t > ROLL_IF1) || (p.state === 'flip' && p.t > FLIP_IF1);
@@ -5688,26 +5705,26 @@ function botThink(b, br, D){
       }
     } else if (T < b.riposteUntil && d <= b.w.reach + .5){
       tryAttack(b, pickAngle(p), false);
-    } else if ((b.shuri | 0) > 0 && T >= (br.throwAt || 0) && d > b.w.reach + 1 && d < 11 && (Math.random() < D.throw*.03 || (p.state === 'hold' && p.atk && p.atk.heavy && Math.random() < D.throw*.25))){
+    } else if (pressing && (b.shuri | 0) > 0 && T >= (br.throwAt || 0) && d > b.w.reach + 1 && d < 11 && (Math.random() < D.throw*.03 || (p.state === 'hold' && p.atk && p.atk.heavy && Math.random() < D.throw*.25))){
       // a star to keep them honest from range, or to break a charge
       if (tryThrow(b)) br.throwAt = T + rand(2200, 5200)/D.aggr;
-    } else if (br.artWant && ARTS[b.wkey] && b.breath >= SP_COST + 18 && d <= ARTS[b.wkey].range - .5 && d >= Math.max(2.4, p.w.reach + .7)){
+    } else if (pressing && br.artWant && ARTS[b.wkey] && b.breath >= SP_COST + 18 && d <= ARTS[b.wkey].range - .5 && d >= Math.max(2.4, p.w.reach + .7)){
       // the weapon's art: from just outside their reach, a heavy blow held until the ring closes
       if (tryAttack(b, pickAngle(p), true)){ b.atk.holdFor = SP_CHARGE + rand(30, 170); br.nextAtk = T + rand(1500, 2800)/D.aggr; br.artWant = false; }
-    } else if (T >= br.nextAtk && d <= b.w.reach + 1.2 && Math.random() < .22*D.aggr){
+    } else if (pressing && T >= br.nextAtk && d <= b.w.reach + 1.2 && Math.random() < .05*D.aggr){
       // variety: a spin (usually with a cut) or a jump (usually with a plunge)
       const r = Math.random();
       if (r < .5){ if (trySpin(b)) br.followAt = Math.random() < .72 ? T + rand(140, 330) : 0; }
       else if (d > b.w.reach*.6){ if (tryJump(b, dirTo(b, p))) br.followAt = Math.random() < .75 ? T + rand(90, 260) : 0; }
       br.nextAtk = T + rand(900, 2200)/D.aggr;
-    } else if (T >= br.nextAtk && d <= b.w.reach + .8 && Math.random() < D.flank*.12 && canAct(p)){
+    } else if (pressing && T >= br.nextAtk && d <= b.w.reach + .8 && Math.random() < D.flank*.08 && canAct(p)){
       // slip to the side of the guard
       const sg = Math.random() < .5 ? 1 : -1, fw0 = dirTo(b, p);
       if (tryDash(b, norm(-fw0.z*sg + fw0.x*.25, fw0.x*sg + fw0.z*.25))){ br.flankAt = T + DASH_DUR + rand(20, 90); br.nextAtk = T + rand(900, 2000)/D.aggr; }
-    } else if (T >= br.nextAtk && d <= b.w.reach + .35){
+    } else if (pressing && T >= br.nextAtk && d <= b.w.reach + .35){
       if (tryAttack(b, pickAngle(p), Math.random() < .28)){
         if (Math.random() < D.feint*.9) b.atk.holdFor = rand(180, 560);   // sometimes wait with the blade up
-        br.nextAtk = T + rand(650, 1900) / D.aggr;
+        br.nextAtk = T + rand(850, 2200) / D.aggr;
         br.feintAt = Math.random() < D.feint ? T + b.dur*rand(.18, b.w.feintFrac*.85) : 0;
       }
     }
@@ -5729,17 +5746,26 @@ function botThink(b, br, D){
   if (p.state === 'windup' && !br.plan && d < p.w.reach + .4 && b.state === 'idle') radial = Math.min(radial, -.5);
   // a heavy blow being held (maybe an art gathering): don't walk into it, wait for it with the answer ready
   if ((p.state === 'hold' || (p.state === 'windup' && p.atk && p.atk.heavy)) && b.state === 'idle' && !br.artWant) radial = Math.min(radial, d < p.w.reach + 1 ? -.6 : 0);
-  if (T > br.strafeT){ br.strafe = Math.random() < .2 ? 0 : (Math.random() < .5 ? -1 : 1); br.strafeT = T + rand(900, 2600); }
-  let vx = fw.x*radial + rt.x*br.strafe*.55, vz = fw.z*radial + rt.z*br.strafe*.55;
+  if (!pressing && !br.artWant && !b.w.thrust){
+    // just outside whichever reach is longer: close enough to threaten, far enough to see it coming
+    const edge = Math.max(b.w.reach, p.w.reach) + .45;
+    radial = d > edge + .35 ? .6 : d < edge - .3 ? -.55 : 0;
+    if (T > (br.probeAt || 0)){ br.probeAt = T + rand(1400, 2800); br.probeUntil = T + rand(160, 260); br.probeBack = br.probeUntil + rand(200, 320); }
+    if (T < (br.probeUntil || 0)) radial = .9; else if (T < (br.probeBack || 0)) radial = -.7;
+    if (p.state === 'windup' && d < p.w.reach + .4) radial = Math.min(radial, -.5);
+  }
+  if (T > br.strafeT){ br.strafe = Math.random() < .35 ? 0 : (Math.random() < .5 ? -1 : 1); br.strafeT = T + rand(1600, 3600); }
+  const strafeK = pressing ? .5 : .32;
+  let vx = fw.x*radial + rt.x*br.strafe*strafeK, vz = fw.z*radial + rt.z*br.strafe*strafeK;
   const l = Math.hypot(vx, vz); if (l > 1){ vx /= l; vz /= l; }
   b.moveIn.x = vx; b.moveIn.z = vz;
   if (b.state === 'idle' && d > pref + 3 && Math.random() < .01) tryDash(b, fw);
-  if (b.w.chain && b.state === 'idle' && !br.plan && d > b.w.reach + .5 && d < b.w.reach + b.w.chain - .2 && Math.random() < .02*D.aggr) tryAttack(b, pickAngle(p, Math.random), true);
+  if (pressing && b.w.chain && b.state === 'idle' && !br.plan && d > b.w.reach + .5 && d < b.w.reach + b.w.chain - .2 && Math.random() < .02*D.aggr) tryAttack(b, pickAngle(p, Math.random), true);
   // the chain bit: the sickle follows them in
   if (b.w.chain && b.state === 'idle' && p.state === 'hitstun' && b.atk && b.atk.chain && b.atk.contact && br.chainSid !== b.atk){ br.chainSid = b.atk; tryAttack(b, pickAngle(p), false); }
   // the spear: keep them out at the point. Thrust as they step into its reach, give ground when they get inside it.
   if (b.w.thrust && b.state === 'idle' && !br.plan){
-    if (d <= b.w.reach + .15 && d > p.w.reach + .2 && Math.random() < .06*D.aggr) tryAttack(b, pickAngle(p), false);
+    if (d <= b.w.reach + .15 && d > p.w.reach + .2 && Math.random() < (pressing ? .06 : .02)*D.aggr) tryAttack(b, pickAngle(p), false);
     else if (d < b.w.close && Math.random() < .025*D.aggr) tryDash(b, norm(-fw.x + rt.x*(Math.random() < .5 ? .5 : -.5), -fw.z + rt.z*(Math.random() < .5 ? .5 : -.5)));
   }
   // now and then, over the top
@@ -6628,7 +6654,7 @@ function cineStart(long){
   G.cine = { long, t:0, drawn:{ you:false, foe:false }, beats:{} };
   $('#app').classList.add('cine'); $('#hud').hidden = false; $('#hud').classList.add('dim');
   for (const f of [you, foe]) f.sheath = long ? 1 : 0;
-  if (long){ SIMF[0].pos.z = CINE_START_Z; SIMF[1].pos.z = -CINE_START_Z; resetCloth(you); resetCloth(foe); Sfx.wind(); arenaCue(); if (!NET.replay) Sfx.flute(ARENA.key); }
+  if (long){ SIMF[0].pos.z = CINE_START_Z; SIMF[1].pos.z = -CINE_START_Z; resetCloth(you); resetCloth(foe); arenaCue(); if (!NET.replay) Sfx.flute(ARENA.key); }
 }
 function cineSkip(){
   const c = G.cine; if (!c || !c.long || G.phaseT >= CINE_LONG.draw) return;
