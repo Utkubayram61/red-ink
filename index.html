@@ -1,13 +1,3 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Red Ink: an ink-and-paper 1v1 sword duel. Aim your blade with the mouse, parry at the right moment and the right angle. Fight a bot or a friend online.">
-<meta property="og:title" content="Red Ink">
-<meta property="og:description" content="A 1v1 sword duel in steel and ink. Play in the browser.">
-<meta property="og:image" content="https://utkubayram61.github.io/red-ink/cover.png">
-<meta name="twitter:card" content="summary_large_image">
 <title>Red Ink</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -584,6 +574,9 @@ details.ctrls[open] summary::before{content:"– "}
         <div class="tr"><div class="tl"><span>Look</span></div>
           <div class="seg" id="t-style" role="group" aria-label="Look"><button type="button" data-s="ink">Ink</button><button type="button" data-s="color">Color</button><button type="button" data-s="painted">Painted</button></div>
         </div>
+        <div class="tr"><div class="tl"><span>Graphics</span></div>
+          <div class="seg" id="t-gfx" role="group" aria-label="Graphics quality"><button type="button" data-g="high">High</button><button type="button" data-g="balanced">Balanced</button><button type="button" data-g="fast">Performance</button></div>
+        </div>
         <button type="button" class="linkbtn" id="t-reset">Reset to defaults</button>
       </aside>
         </div>
@@ -693,7 +686,7 @@ const STATE_TR = { flip:'flip', throw:'shuriken', art:'art', artRecover:'after a
 const VULN = new Set(['parryRecover','stagger','broken','feintRecover','recovery','spinRecover','land','artRecover']);
 
 /* ================= settings ================= */
-const DEFAULTS = { window:160, tol:45, sweep:100, whiff:420, speed:1, sens:1, vol:.7, diff:'normal', indicator:true, slowmo:true, blood:true, pw:'longsword', bw:'random', arena:'random', look:null, foeLook:'auto', voices:true, color:true, style:'painted', dojoDone:[] };
+const DEFAULTS = { window:160, tol:45, sweep:100, whiff:420, speed:1, sens:1, vol:.7, diff:'normal', indicator:true, slowmo:true, blood:true, pw:'longsword', bw:'random', arena:'random', look:null, foeLook:'auto', voices:true, color:true, style:'painted', gfx:'balanced', dojoDone:[] };
 const S = Object.assign({}, DEFAULTS);
 try { const raw = localStorage.getItem('aci-duellosu-v1'); if (raw) Object.assign(S, JSON.parse(raw)); } catch(e) {}
 if (!WEAPONS[S.pw]) S.pw = 'longsword';
@@ -702,6 +695,7 @@ if (!DIFFS[S.diff]) S.diff = 'normal';
 // the look: ink, colour or painted (older saves only knew colour on/off)
 if (!['ink', 'color', 'painted'].includes(S.style)) S.style = S.color === false ? 'ink' : DEFAULTS.style;
 S.color = S.style !== 'ink';
+if (!['high', 'balanced', 'fast'].includes(S.gfx)) S.gfx = DEFAULTS.gfx;
 // the timing rules, speed, sensitivity and volume are fixed at their defaults; the player only sets difficulty and the toggles
 for (const k of ['window', 'tol', 'sweep', 'whiff', 'speed', 'sens', 'vol']) S[k] = DEFAULTS[k];
 if (S.foeLook !== 'random') S.foeLook = 'auto';
@@ -728,6 +722,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias:!THREE.EffectCompos
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate = false;   // redrawn once per frame, just before the main pass (see frame)
 renderer.outputEncoding = THREE.LinearEncoding;
 renderer.toneMapping = THREE.NoToneMapping;
 const scene = new THREE.Scene();
@@ -741,23 +736,28 @@ const camLook = new THREE.Vector3(0,1.1,0);
 let composer = null, gradePass = null;
 const InkShader = {
   uniforms: { tDiffuse:{ value:null }, tND:{ value:null }, uTime:{ value:0 }, uSat:{ value:1 }, uColor:{ value:0 }, uPaint:{ value:0 }, uImpact:{ value:0 }, uRes:{ value:new THREE.Vector2(1, 1) },
-    uFar:{ value:220 }, uDof:{ value:0 }, uFocus:{ value:5 }, uEdges:{ value:1 } },
+    uFar:{ value:220 }, uDof:{ value:0 }, uFocus:{ value:5 }, uEdges:{ value:1 }, uGlow:{ value:1 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
   fragmentShader: `
-    uniform sampler2D tDiffuse, tND; uniform float uTime, uSat, uColor, uPaint, uImpact, uFar, uDof, uFocus, uEdges; uniform vec2 uRes; varying vec2 vUv;
+    uniform sampler2D tDiffuse, tND; uniform float uTime, uSat, uColor, uPaint, uImpact, uFar, uDof, uFocus, uEdges, uGlow; uniform vec2 uRes; varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)))*43758.5453); }
     float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0 - 2.0*f);
       return mix(mix(hash(i), hash(i + vec2(1.0,0.0)), f.x), mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), f.x), f.y); }
     vec3 nrm(vec2 uv){ vec2 xy = texture2D(tND, uv).xy*2.0 - 1.0; return vec3(xy, sqrt(max(0.0, 1.0 - dot(xy, xy)))); }
     float dep(vec2 uv){ vec4 t = texture2D(tND, uv); return t.z + t.w/255.0; }
     // brush line: where depth bends (Laplacian of 1/z, so flat floors stay clean) or the surface turns sharply
+    vec3 nrmT(vec4 t){ vec2 xy = t.xy*2.0 - 1.0; return vec3(xy, sqrt(max(0.0, 1.0 - dot(xy, xy)))); }
+    float depT(vec4 t){ return t.z + t.w/255.0; }
     float edges(vec2 uv, float w){
-      float zc = 1.0/max(dep(uv), 1e-4); vec3 nc = nrm(uv); float e = 0.0;
+      vec4 tc = texture2D(tND, uv);   // one fetch per tap gives both the normal and the depth
+      float zc = 1.0/max(depT(tc), 1e-4); vec3 nc = nrmT(tc); float e = 0.0;
+      const vec2 D1 = vec2(1.0, 0.0), D2 = vec2(.7071, .7071), D3 = vec2(0.0, 1.0), D4 = vec2(-.7071, .7071);
       for (int k=0;k<4;k++){
-        float a = float(k)*.7854; vec2 o = vec2(cos(a), sin(a))*w/uRes;
-        float za = 1.0/max(dep(uv + o), 1e-4), zb = 1.0/max(dep(uv - o), 1e-4);
+        vec2 o = (k == 0 ? D1 : k == 1 ? D2 : k == 2 ? D3 : D4)*w/uRes;
+        vec4 ta = texture2D(tND, uv + o), tb = texture2D(tND, uv - o);
+        float za = 1.0/max(depT(ta), 1e-4), zb = 1.0/max(depT(tb), 1e-4);
         e = max(e, smoothstep(.035, .14, abs(za + zb - 2.0*zc)/zc));
-        e = max(e, smoothstep(.22, .55, 1.0 - min(dot(nc, nrm(uv + o)), dot(nc, nrm(uv - o))))*.85);
+        e = max(e, smoothstep(.22, .55, 1.0 - min(dot(nc, nrmT(ta)), dot(nc, nrmT(tb))))*.85);
       }
       return e;
     }
@@ -837,7 +837,7 @@ const InkShader = {
       if (uPaint > .001){
         vec3 pg = grade(c);
         vec3 glow = vec3(0.0);
-        for (int i=0;i<12;i++){
+        if (uGlow > .5) for (int i=0;i<12;i++){
           float a = float(i)*.5236, rr = (i < 6 ? 9.0 : 19.0);
           vec3 t = texture2D(tDiffuse, vUv + vec2(cos(a + rr), sin(a + rr))*rr/uRes).rgb;
           float ts = max(t.r, max(t.g, t.b)) - min(t.r, min(t.g, t.b)); glow += max(t - .8, 0.0)*(.4 + ts*1.6);   // warm, saturated light blooms; pale stone does not
@@ -1303,9 +1303,9 @@ function arenaKopru(){
       const shader = { uniforms:{ color:{ value:null }, tDiffuse:{ value:null }, textureMatrix:{ value:null }, tMask:{ value:null } },
         vertexShader:'uniform mat4 textureMatrix; varying vec4 vUv; varying vec2 vUv2; void main(){ vUv = textureMatrix*vec4(position, 1.0); vUv2 = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position, 1.0); }',
         fragmentShader:'uniform vec3 color; uniform sampler2D tDiffuse, tMask; varying vec4 vUv; varying vec2 vUv2; void main(){ float m = texture2D(tMask, vUv2).r; if (m < .04) discard; vec4 b = texture2DProj(tDiffuse, vUv); gl_FragColor = vec4(mix(color, b.rgb, .62), smoothstep(.04, .5, m)*.92); }' };
-      const pud = new THREE.Reflector(new THREE.PlaneGeometry(5.8, 26), { textureWidth:512, textureHeight:1024, clipBias:.003, color:0x4F4943, shader });
+      const pud = new THREE.Reflector(new THREE.PlaneGeometry(5.8, 26), { textureWidth:256, textureHeight:512, clipBias:.003, color:0x4F4943, shader });
       pud.material.transparent = true; pud.material.uniforms.tMask.value = mask;
-      pud.rotation.x = -Math.PI/2; pud.position.y = .012; arenaG.add(pud); AR.puddle = pud;
+      pud.rotation.x = -Math.PI/2; pud.position.y = .012; arenaG.add(pud); AR.puddle = pud; throttleMirror(pud, 256, 512);
     } catch(e) {}
   }
   /* the bridge lands on rock at both ends: a cliff falls to the river, the deck rests on a stone footing, a roofed gate
@@ -1452,8 +1452,8 @@ function arenaAy(){
       const shader = { uniforms:{ color:{ value:null }, tDiffuse:{ value:null }, textureMatrix:{ value:null } },
         vertexShader:'uniform mat4 textureMatrix; varying vec4 vUv; varying vec3 vW; void main(){ vUv = textureMatrix*vec4(position, 1.0); vW = (modelMatrix*vec4(position, 1.0)).xyz; gl_Position = projectionMatrix*modelViewMatrix*vec4(position, 1.0); }',
         fragmentShader:'uniform vec3 color; uniform sampler2D tDiffuse; varying vec4 vUv; varying vec3 vW; void main(){ vec4 p = vUv; p.x += sin(vW.z*1.7 + vW.x*.3)*.6; vec4 b = texture2DProj(tDiffuse, p); gl_FragColor = vec4(mix(color, b.rgb, .58), 1.0); }' };
-      water = new THREE.Reflector(new THREE.PlaneGeometry(220, 220), { textureWidth:512, textureHeight:512, clipBias:.003, color:0x141218, shader });
-      AR.puddle = water;
+      water = new THREE.Reflector(new THREE.PlaneGeometry(220, 220), { textureWidth:384, textureHeight:384, clipBias:.003, color:0x141218, shader });
+      AR.puddle = water; throttleMirror(water, 384, 384);
     } catch(e) { water = null; }
   }
   if (!water) water = new THREE.Mesh(new THREE.PlaneGeometry(220, 220), new THREE.MeshBasicMaterial({ color:0x18161A }));
@@ -1648,7 +1648,7 @@ function buildArena(key){
     b.scale.set(9, 36, 1); b.renderOrder = -4; arenaG.add(b); AR.bolt = b;
   }
   setWeather(cfg.weather);
-  AR.cfg = cfg; paintArena(); addHalos();
+  AR.cfg = cfg; paintArena(); addHalos(); mergeStatic();
   resetCloth(you); resetCloth(foe);
   Sfx.ambient(key);
 }
@@ -1770,6 +1770,90 @@ const COLOR_ARENA = {
            lay:{ '-6':0xF3D8D2, '-5':0xE7D3D0, '-4':0xA59FB5, '-3':0x8D95A0, '-2':0x77866A },
            hex:{ '77706a':0x8E8070, '4a4a40':0x3E5B35, '8a8378':0xBBA689, '2a2622':0x80402C, 'e9e1d2':0xF6E6D0 } },
 };
+function isFlat(o){
+  if (o.userData.flat !== undefined) return o.userData.flat;
+  if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); const bb = o.geometry.boundingBox;
+  return bb.max.y - bb.min.y < .01 || bb.max.z - bb.min.z < .01 || Array.isArray(o.material);
+}
+/* ---- static batching: every still prop that shares a material becomes one mesh (hundreds of draw calls become dozens,
+   in the main pass, the normal prepass, the shadow pass and the mirrors alike). What moves is found by running the
+   arena's animations once at full gust and seeing which matrices change; those stay as they are. ---- */
+function mergeStatic(){
+  if (!arenaG || window.__noMerge) return;
+  const inv = new THREE.Matrix4(), mtx = new THREE.Matrix4(), nm = new THREE.Matrix3(), v = new THREE.Vector3(), sph = new THREE.Sphere();
+  arenaG.updateMatrixWorld(true); inv.copy(arenaG.matrixWorld).invert();
+  const still = new Map(), skip = new Set();
+  for (const L of AR.layers) skip.add(L.m);
+  arenaG.traverse(o => { if (o.isMesh) still.set(o, [o.matrixWorld.clone(), o.matrix.clone()]); });
+  // a material the animations touch keeps its own identity; any other is interchangeable with its twins
+  const mstate = m => [m.color ? m.color.getHex() : 0, m.emissive ? m.emissive.getHex() : 0, m.opacity, m.visible].join();
+  const mats = new Map(); arenaG.traverse(o => { if (o.isMesh && o.material && !Array.isArray(o.material)) mats.set(o.material, mstate(o.material)); });
+  const gn = WIND.gustNow; WIND.gustNow = 1;
+  for (const t of [1234, 2871, 5110, 7777]) for (const a of AR.anim){ try { a(37, t); } catch(e){} }
+  WIND.gustNow = gn; arenaG.updateMatrixWorld(true);
+  const sig = m => (mats.get(m) !== mstate(m)) ? m.uuid : [m.type, m.userData.c0 !== undefined ? m.userData.c0 : m.color && m.color.getHex(), m.map ? m.map.uuid : '', m.side, m.emissive ? m.emissive.getHex() : '',
+    m.opacity, m.fog, m.depthWrite, m.depthTest, m.polygonOffset, m.polygonOffsetFactor, m.vertexColors, m.gradientMap ? m.gradientMap.uuid : '', m.customProgramCacheKey ? m.customProgramCacheKey() : '', !!m.onBeforeCompile && m.onBeforeCompile.toString().length,
+    m.clippingPlanes ? m.uuid : '', m.isShaderMaterial ? m.uuid : '', m.wireframe, m.alphaTest].join('/');
+  const groups = new Map();
+  arenaG.traverse(o => {
+    if (!o.isMesh || skip.has(o)) return;
+    const D = window.__mergeDiag; const why = k => { if (D) D[k] = (D[k] || 0) + 1; };
+    // still in the world: batched with the whole arena. Riding on something that sways (a bridge rail, a lantern): batched
+    // with its siblings in that parent's own space, so the batch sways with it.
+    const m0 = still.get(o); if (!m0) return;
+    const host = m0[0].equals(o.matrixWorld) ? arenaG : m0[1].equals(o.matrix) ? o.parent : null;
+    if (!host) return why('moves');
+    // far props cannot throw a shadow into the fight; let them stop casting one
+    if (o.castShadow){ const g = o.geometry; if (!g.boundingSphere) g.computeBoundingSphere(); sph.copy(g.boundingSphere).applyMatrix4(o.matrixWorld);
+      if (Math.hypot(sph.center.x, sph.center.z) - sph.radius > 17) o.castShadow = false; }
+    const m = o.material, g = o.geometry;
+    if (o.isInstancedMesh || o.isSkinnedMesh || o.isReflector || Array.isArray(m) || !m || m.transparent || !o.visible || o.frustumCulled === false) return why('kind');
+    if (o.children.length || o.onBeforeRender !== THREE.Object3D.prototype.onBeforeRender || o.userData.cloth || o.userData.hull) return why(o.children.length ? 'children' : 'hook');
+    if (!g || !g.isBufferGeometry || !g.attributes.position || Object.keys(g.morphAttributes || {}).length) return why('geo');
+    const names = Object.keys(g.attributes).sort(); if (names.some(n => g.attributes[n].isInterleavedBufferAttribute || g.attributes[n].normalized || !(g.attributes[n].array instanceof Float32Array))) return why('attr');
+    why('ok');
+    const flat = isFlat(o);
+    const key = [host.uuid, sig(m), o.castShadow, o.receiveShadow, !!o.userData.noEdge, o.renderOrder, flat, names.map(n => n + g.attributes[n].itemSize).join()].join('|');
+    let G = groups.get(key); if (!G) groups.set(key, G = { list:[], m, o, flat, host }); G.list.push(o);
+  });
+  const dropGeo = new Set();
+  for (const G of groups.values()){
+    if (G.list.length < 2) continue;
+    let nv = 0, ni = 0; for (const o of G.list){ const g = o.geometry; nv += g.attributes.position.count; ni += g.index ? g.index.count : g.attributes.position.count; }
+    const names = Object.keys(G.o.geometry.attributes), out = {};
+    for (const n of names) out[n] = new Float32Array(nv*G.o.geometry.attributes[n].itemSize);
+    const idx = nv > 65535 ? new Uint32Array(ni) : new Uint16Array(ni);
+    let vo = 0, io = 0;
+    for (const o of G.list){
+      const g = o.geometry, cnt = g.attributes.position.count;
+      if (G.host === arenaG) mtx.multiplyMatrices(inv, o.matrixWorld); else mtx.copy(o.matrix);
+      nm.getNormalMatrix(mtx);
+      for (const n of names){
+        const a = g.attributes[n], it = a.itemSize, dst = out[n];
+        for (let i=0;i<cnt;i++){
+          if (n === 'position'){ v.fromBufferAttribute(a, i).applyMatrix4(mtx); dst[(vo + i)*3] = v.x; dst[(vo + i)*3 + 1] = v.y; dst[(vo + i)*3 + 2] = v.z; }
+          else if (n === 'normal'){ v.fromBufferAttribute(a, i).applyMatrix3(nm).normalize(); dst[(vo + i)*3] = v.x; dst[(vo + i)*3 + 1] = v.y; dst[(vo + i)*3 + 2] = v.z; }
+          else for (let k=0;k<it;k++) dst[(vo + i)*it + k] = a.array[i*it + k];
+        }
+      }
+      const flip = mtx.determinant() < 0, n3 = g.index ? g.index.count : cnt;
+      for (let i=0;i<n3;i+=3){
+        const a = g.index ? g.index.getX(i) : i, b = g.index ? g.index.getX(i + 1) : i + 1, c = g.index ? g.index.getX(i + 2) : i + 2;
+        idx[io++] = vo + a; idx[io++] = vo + (flip ? c : b); idx[io++] = vo + (flip ? b : c);
+      }
+      vo += cnt; dropGeo.add(g); o.parent.remove(o);
+    }
+    const geo = new THREE.BufferGeometry();
+    for (const n of names) geo.setAttribute(n, new THREE.BufferAttribute(out[n], G.o.geometry.attributes[n].itemSize));
+    geo.setIndex(new THREE.BufferAttribute(idx, 1)); geo.computeBoundingSphere(); geo.computeBoundingBox();
+    const me = new THREE.Mesh(geo, G.m); me.castShadow = G.o.castShadow; me.receiveShadow = G.o.receiveShadow; me.renderOrder = G.o.renderOrder;
+    me.userData.noEdge = !!G.o.userData.noEdge; me.userData.flat = G.flat; me.userData.merged = G.list.length; me.matrixAutoUpdate = false;
+    G.host.add(me);
+  }
+  // geometry nobody draws any more goes back to the GPU
+  const used = new Set(); arenaG.traverse(o => { if (o.geometry) used.add(o.geometry); });
+  for (const g of dropGeo) if (!used.has(g)) g.dispose();
+}
 function paintArena(){
   const C0 = S.color && COLOR_ARENA[ARENA.key];
   // painted: the colour palette with the painted light, sky and distance laid over it
@@ -1788,7 +1872,7 @@ function paintArena(){
       if (o.isSprite){ if (hx === 'ffffff' && C.rays) m.color.setHex(C.rays); continue; }
       if (o.isInstancedMesh){ m.color.setHex(o.geometry.type.startsWith('Plane') || m.type === 'MeshBasicMaterial' ? (C.leaves || C.grass || 0xFFFFFF) : (C.bamboo || C.grass || 0xFFFFFF)); continue; }
       if (m.side === THREE.BackSide && m.type === 'MeshBasicMaterial'){ const t = C.lay[String(o.renderOrder)]; if (t !== undefined) m.color.setHex(t); continue; }
-      if (hx === 'ffffff' && o.geometry){ if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); const bb = o.geometry.boundingBox; if (bb.max.y - bb.min.y < .01 || bb.max.z - bb.min.z < .01 || Array.isArray(o.material)) m.color.setHex(C.ground); }
+      if (hx === 'ffffff' && o.geometry){ if (isFlat(o)) m.color.setHex(C.ground); }
     }
   });
   // plain-coloured instanced grass (no texture)
@@ -7284,12 +7368,15 @@ $('#t-slow').addEventListener('change', e => { S.slowmo = e.target.checked; save
 $('#t-blood').addEventListener('change', e => { S.blood = e.target.checked; save(); if (!S.blood) clearDecals(); });
 $('#t-voice').addEventListener('change', e => { S.voices = e.target.checked; save(); });
 $('#t-style').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; setStyle(b.dataset.s); syncTune(); });
+$('#t-gfx').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.gfx = b.dataset.g; save();
+  Object.assign(PERF, { k:1, drop:0, msaaOff:false, slowT:0, okT:0, failK:9, failAt:-1e9 }); applyGfx(); syncTune(); });
 $('#t-reset').addEventListener('click', () => { for (const k of ['window','tol','sweep','whiff','speed','sens','vol','diff','indicator','slowmo','blood','voices']) S[k] = DEFAULTS[k]; save(); syncTune(); Sfx.setVol(S.vol); if (S.style !== DEFAULTS.style) setStyle(DEFAULTS.style); syncTune(); });
 function syncTune(){
   for (const [key, fmt] of RANGES){ $('#t-' + key).value = S[key]; $('#o-' + key).textContent = fmt(S[key]); }
   document.querySelectorAll('#t-diff button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.d === S.diff)));
   $('#t-ind').checked = S.indicator; $('#t-slow').checked = S.slowmo; $('#t-blood').checked = S.blood; $('#t-voice').checked = S.voices !== false;
   document.querySelectorAll('#t-style button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.s === S.style)));
+  document.querySelectorAll('#t-gfx button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.g === S.gfx)));
 }
 syncTune();
 menuShow('title');
@@ -7318,10 +7405,37 @@ $('#copyBtn').addEventListener('click', () => {
    to eight times the pixels of a small one, so the render has a pixel budget (smaller for the heavier painted look) and
    the canvas is stretched up to the window. If the machine still struggles the scale steps down, a little at a time,
    and creeps back up when there is room again, never above a level that was already too slow. */
-const PERF = { k:1, ema:16.7, slowT:0, okT:0, floor:.7, msaaOff:false, failK:9, failAt:-1e9 };
+const PERF = { k:1, ema:16.7, slowT:0, okT:0, floor:.7, msaaOff:false, failK:9, failAt:-1e9, drop:0 };
+/* graphics tiers: High is everything; Balanced (the default) draws ~30% fewer pixels and refreshes the mirrors every
+   other frame at a smaller size; Performance halves the pixels, drops the multisampling, the painted bloom and half
+   the shadow map. If the machine still cannot keep up at the lowest resolution step, the watcher drops a tier itself. */
+const GFX_ORDER = ['high', 'balanced', 'fast'];
+const GFX_T = [ { pix:1, mirror:1, mres:1, shadow:1024, msaa:true, glow:1 }, { pix:.7, mirror:2, mres:.75, shadow:1024, msaa:true, glow:1 }, { pix:.5, mirror:3, mres:.5, shadow:512, msaa:false, glow:0 } ];
+const gfxT = () => GFX_T[Math.min(2, Math.max(GFX_ORDER.indexOf(S.gfx), PERF.drop))];
+function setMsaa(on){
+  if (!composer || !composer.msaa) return;
+  for (const rt of [composer.renderTarget1, composer.renderTarget2]) if (rt.isWebGLMultisampleRenderTarget && rt.samples !== (on ? 4 : 0)){ rt.samples = on ? 4 : 0; rt.dispose(); }
+}
+function mirrorRes(){
+  const m = AR.puddle, T = gfxT(); if (!m || !m.getRenderTarget || !m.userData.res) return;
+  m.getRenderTarget().setSize(Math.round(m.userData.res[0]*T.mres), Math.round(m.userData.res[1]*T.mres));
+}
+// a mirror re-renders the whole scene; between refreshes it keeps last frame's picture (and the matching projection)
+function throttleMirror(m, w, h){
+  m.userData.res = [w, h]; const ob = m.onBeforeRender; let n = 0;
+  m.onBeforeRender = function(r, sc, cam){ const k = gfxT().mirror; if (k > 1 && (n++ % k) !== 0 && this.userData.primed) return; this.userData.primed = true; ob.call(this, r, sc, cam); };
+  mirrorRes();
+}
+function applyGfx(){
+  const T = gfxT();
+  setMsaa(T.msaa && !PERF.msaaOff);
+  if (sunLight.shadow.mapSize.x !== T.shadow){ sunLight.shadow.mapSize.set(T.shadow, T.shadow); if (sunLight.shadow.map){ sunLight.shadow.map.dispose(); sunLight.shadow.map = null; } }
+  if (gradePass) gradePass.uniforms.uGlow.value = T.glow;
+  mirrorRes(); resize();
+}
 const PIX_BUDGET = { ink:2.6e6, color:2.6e6, painted:1.8e6 };
 function renderScale(){
-  const budget = PIX_BUDGET[S.style] || 2.2e6;
+  const budget = (PIX_BUDGET[S.style] || 2.2e6)*gfxT().pix;
   return Math.max(.5, Math.min(DPR, 1.5, Math.sqrt(budget/(W*H)))*PERF.k);
 }
 /* Only a steady slowdown counts: hitches (a shader compiling, a tab switch, a garbage collection) and slow motion are
@@ -7335,8 +7449,9 @@ function watchPerf(rdt){
   PERF.okT = PERF.ema < 18.5 ? PERF.okT + rdt : 0;
   if (PERF.slowT > 4000){
     PERF.slowT = 0; PERF.okT = 0;
-    if (!PERF.msaaOff && composer && composer.msaa){ PERF.msaaOff = true; for (const rt of [composer.renderTarget1, composer.renderTarget2]) if (rt.samples){ rt.samples = 0; rt.dispose(); } return; }
+    if (!PERF.msaaOff && composer && composer.msaa && gfxT().msaa){ PERF.msaaOff = true; setMsaa(false); return; }
     if (PERF.k > PERF.floor + .01){ PERF.failK = PERF.k; PERF.failAt = now; PERF.k = Math.max(PERF.floor, PERF.k*.9); resize(); }
+    else if (Math.max(GFX_ORDER.indexOf(S.gfx), PERF.drop) < 2){ PERF.drop = Math.max(GFX_ORDER.indexOf(S.gfx), PERF.drop) + 1; PERF.k = .85; PERF.failK = 9; applyGfx(); }
   }
   if (PERF.okT > 10000 && PERF.k < 1){
     PERF.okT = 0;
@@ -7354,7 +7469,7 @@ function resize(){
   kjCanvas.width = Math.round(W*DPR); kjCanvas.height = Math.round(H*DPR); for (const k of KJ) k.cache = null;
 }
 window.addEventListener('resize', resize);
-resize();
+applyGfx();
 
 S.look = cleanLook(S.look); you.lookCfg = S.look;
 setWeapon(you, S.pw);
@@ -7683,8 +7798,9 @@ function frame(now){
     gradePass.uniforms.uDof.value = lerp(gradePass.uniforms.uDof.value, dofT, 1 - Math.exp(-rdt*.006));
     gradePass.uniforms.uFocus.value = camera.position.distanceTo(camLook);
     renderNormals();
+    renderer.shadowMap.needsUpdate = true;
     composer.render();
-  } else renderer.render(scene, camera);
+  } else { renderer.shadowMap.needsUpdate = true; renderer.render(scene, camera); }
   drawHUD();
   drawKanji(G.paused ? 0 : rdt); titleCard(); dojoFrame();
   if (G.phase === 'fight') watchPerf(rdt);
@@ -7695,4 +7811,3 @@ function frame(now){
 requestAnimationFrame(frame);
 })();
 </script>
-</html>
