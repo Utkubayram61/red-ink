@@ -7318,24 +7318,31 @@ $('#copyBtn').addEventListener('click', () => {
    to eight times the pixels of a small one, so the render has a pixel budget (smaller for the heavier painted look) and
    the canvas is stretched up to the window. If the machine still struggles the scale steps down, a little at a time,
    and creeps back up when there is room again, never above a level that was already too slow. */
-const PERF = { k:1, ceil:1.6, ema:16, slowT:0, fastT:0 };
+const PERF = { k:1, ema:16.7, slowT:0, okT:0, floor:.7, msaaOff:false, failK:9, failAt:-1e9 };
 const PIX_BUDGET = { ink:2.6e6, color:2.6e6, painted:1.8e6 };
 function renderScale(){
   const budget = PIX_BUDGET[S.style] || 2.2e6;
   return Math.max(.5, Math.min(DPR, 1.5, Math.sqrt(budget/(W*H)))*PERF.k);
 }
+/* Only a steady slowdown counts: hitches (a shader compiling, a tab switch, a garbage collection) and slow motion are
+   ignored. Under ~42 fps for four seconds the scale steps down 10% (never below 70%); holding ~55-60 fps for ten
+   seconds it steps back up. A level that just proved too slow is not tried again for a minute, so it cannot flicker. */
 function watchPerf(rdt){
-  if (G.paused || rdt <= 0) return;
-  PERF.ema += (Math.min(rdt, 100) - PERF.ema)*.05;
-  PERF.slowT = PERF.ema > 20 ? PERF.slowT + rdt : 0;       // under ~50 fps
-  PERF.fastT = PERF.ema < 13 ? PERF.fastT + rdt : 0;       // comfortably over 75 fps
-  if (PERF.slowT > 2000){
-    PERF.slowT = 0; PERF.ceil = Math.min(PERF.ceil, PERF.k);
-    // a struggling machine first gives up the multisampling, then resolution
-    if (composer && composer.msaa && composer.msaa.samples > 0){ for (const rt of [composer.renderTarget1, composer.renderTarget2]) if (rt.samples){ rt.samples = 0; rt.dispose(); } return; }
-    if (PERF.k > .45){ PERF.k = Math.max(.45, PERF.k*.82); PERF.ceil = PERF.k; resize(); }
+  if (G.paused || rdt <= 0 || document.hidden || rdt > 70 || slowmo > 0 || hitstop > 0) return;
+  const now = performance.now();
+  PERF.ema += (rdt - PERF.ema)*.03;
+  PERF.slowT = PERF.ema > 24 ? PERF.slowT + rdt : Math.max(0, PERF.slowT - rdt*.5);
+  PERF.okT = PERF.ema < 18.5 ? PERF.okT + rdt : 0;
+  if (PERF.slowT > 4000){
+    PERF.slowT = 0; PERF.okT = 0;
+    if (!PERF.msaaOff && composer && composer.msaa){ PERF.msaaOff = true; for (const rt of [composer.renderTarget1, composer.renderTarget2]) if (rt.samples){ rt.samples = 0; rt.dispose(); } return; }
+    if (PERF.k > PERF.floor + .01){ PERF.failK = PERF.k; PERF.failAt = now; PERF.k = Math.max(PERF.floor, PERF.k*.9); resize(); }
   }
-  if (PERF.fastT > 6000 && PERF.k < PERF.ceil){ PERF.fastT = 0; PERF.k = Math.min(PERF.ceil, PERF.k/.9); resize(); }
+  if (PERF.okT > 10000 && PERF.k < 1){
+    PERF.okT = 0;
+    const up = Math.min(1, PERF.k/.9);
+    if (up < PERF.failK - .001 || now - PERF.failAt > 60000){ PERF.k = up; resize(); }
+  }
 }
 function resize(){
   const r = $('#app').getBoundingClientRect();
