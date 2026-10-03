@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@500;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&text=%E8%A6%8B%E5%88%87%E3%82%8A%E6%96%AC%E8%BF%94%E3%81%97%E5%B4%A9%E4%B8%80%E9%96%83%E5%8B%9D%E6%95%97%E6%A5%B5%E7%9F%B3%E9%A2%A8%E9%9B%AA%E5%B5%90%E7%AB%B9%E8%96%94%E8%96%87%E5%A4%A9%E5%89%B2%E6%97%8B%E9%9B%B7%E7%AA%81%E5%8F%8C%E6%8A%80%E9%A6%96%E8%B2%AB%E4%BB%8B%E9%8C%AF%E5%85%9C%E9%BE%8D%E8%9B%87%E5%B7%BB%E5%AF%BE%E7%B8%81%E9%81%93%E5%A7%BF%E8%A8%AD&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&text=%E8%A6%8B%E5%88%87%E3%82%8A%E6%96%AC%E8%BF%94%E3%81%97%E5%B4%A9%E4%B8%80%E9%96%83%E5%8B%9D%E6%95%97%E6%A5%B5%E7%9F%B3%E9%A2%A8%E9%9B%AA%E5%B5%90%E7%AB%B9%E8%96%94%E8%96%87%E5%A4%A9%E5%89%B2%E6%97%8B%E9%9B%B7%E7%AA%81%E5%8F%8C%E6%8A%80%E9%A6%96%E8%B2%AB%E4%BB%8B%E9%8C%AF%E5%85%9C%E9%BE%8D%E8%9B%87%E5%B7%BB%E5%AF%BE%E7%B8%81%E9%81%93%E5%A7%BF%E8%A8%AD%E8%B5%A4%E6%9C%88&display=swap" rel="stylesheet">
 <style>
 /* Layout: full-bleed ink-on-paper arena; HUD pinned to the edges; menus are paper sheets on the left with a tuning column on the right.
    One deliberate look: paper, ink, one red for blood and danger, gold only for perfect moments. */
@@ -374,7 +374,7 @@ details.ctrls[open] summary::before{content:"– "}
 .rt[aria-pressed="true"]::after{content:"1P";position:absolute;top:-10px;left:50%;transform:translateX(-50%) rotate(-3deg);font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.1em;padding:2px 6px;background:var(--red);color:var(--paper)}
 .rt:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .arow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:end}
-.arenas{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+.arenas{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .ac{position:relative;height:52px;display:flex;align-items:flex-end;padding:6px 8px;border:1.5px solid var(--line);background:linear-gradient(180deg,rgba(0,0,0,0) 35%,rgba(10,8,6,.62) 100%),var(--sky,linear-gradient(180deg,#B9B1A2,#E3D9C4));color:#fff;font:inherit;font-family:var(--display);font-weight:800;font-size:13.5px;line-height:1.1;text-align:left;cursor:pointer;text-shadow:0 1px 3px rgba(0,0,0,.55);overflow:hidden;transition:transform .12s,border-color .12s}
 .ac.rnd{background:repeating-linear-gradient(135deg,var(--ink) 0 10px,#2B2723 10px 20px);justify-content:center;align-items:center;font-size:15px;letter-spacing:.06em}
 .ac:hover{border-color:var(--ink);transform:translateY(-2px)}
@@ -705,7 +705,7 @@ S.color = S.style !== 'ink';
 // the timing rules, speed, sensitivity and volume are fixed at their defaults; the player only sets difficulty and the toggles
 for (const k of ['window', 'tol', 'sweep', 'whiff', 'speed', 'sens', 'vol']) S[k] = DEFAULTS[k];
 if (S.foeLook !== 'random') S.foeLook = 'auto';
-if (S.arena !== 'random' && !['avlu','otlak','kar','kopru','bambu','gul'].includes(S.arena)) S.arena = 'random';
+if (S.arena !== 'random' && !['kopru','gul','ay'].includes(S.arena)) S.arena = 'random';
 const save = () => { try { localStorage.setItem('aci-duellosu-v1', JSON.stringify(S)); } catch(e) {} };
 /* Anything that decides the outcome draws from srnd(): online it is a seeded generator both machines step in lockstep;
    offline it is plain Math.random. Purely visual randomness (particles, sounds, paint) keeps using rand()/Math.random. */
@@ -1050,14 +1050,11 @@ function updateSparks(s){
    at different rates as the camera moves (parallax), and a few shafts of light. The fight itself always happens on the
    same ground plane; only the bridge narrows it. */
 const ARENAS = {
-  avlu:  { name:'Stone Courtyard', line:'The same courtyard. The same red sun. Years later.',            est:{ from:[14, 9, 16], to:[7, 3.2, 8], look:[0, 1.4, -6] } },
-  otlak: { name:'Silver Field',    line:'The wind still blows from the same side.',                       est:{ from:[-18, 6, 10], to:[-8, 2.2, 5], look:[0, 1.2, 0] } },
-  kar:   { name:'Snow Temple',     line:'The snow covered the old tracks long ago.',                        est:{ from:[0, 10, 20], to:[0, 3.5, 11], look:[0, 3, -18] } },
-  kopru: { name:'Storm Bridge',    line:'This storm will take one of them.',                est:{ from:[9, 6, 24], to:[3.5, 2.6, 13], look:[0, 1.4, 0] } },
-  bambu: { name:'Bamboo Forest',   line:'The bamboo remembers everything.',                          est:{ from:[3, 16, 12], to:[5, 2.4, 7], look:[0, 1.5, 0] } },
   gul:   { name:'Rose Garden',     line:'The roses bloomed every spring. He never came back.',                est:{ from:[-15, 7, -14], to:[-7, 2.4, -6], look:[0, 1.2, 0] } },
+  kopru: { name:'Storm Bridge',    line:'This storm will take one of them.',                est:{ from:[9, 6, 24], to:[3.5, 2.6, 13], look:[0, 1.4, 0] } },
+  ay:    { name:'Red Moon',        line:'The moon rose red the night he left. It is red again.',          est:{ from:[6, 9, 26], to:[2.5, 2.4, 12], look:[0, 4, -30] } },
 };
-let arenaG = null, ARENA = { key:'avlu', bounds:'circle', r:ARENA_R };
+let arenaG = null, ARENA = { key:'gul', bounds:'circle', r:ARENA_R };
 const AR = { layers:[], rays:[], anim:[], grass:null, water:null, lanterns:[], puffs:[], clock:0, g:null, gust:[5000, 9000, .6] };
 /* ---- painting on canvas ---- */
 function pcanvas(w, h){ const c = document.createElement('canvas'); c.width = w; c.height = h; return [c, c.getContext('2d')]; }
@@ -1232,31 +1229,6 @@ function pond(x, z, r){
   for (let i=0;i<3;i++) prop(new THREE.CylinderGeometry(.34, .38, .12, 8), toon(0x8A8378), x - r*.4 + i*r*.4, .08, z + (i - 1)*.2);
 }
 /* ---- per-arena builders ---- */
-function arenaAvlu(){
-  const stoneSide = toon(0x8A8378), stoneTop = toon(0xFFFFFF, { map:stoneTexture() });
-  const platform = new THREE.Mesh(new THREE.CylinderGeometry(11.2, 11.7, .6, 72), [stoneSide, stoneTop, stoneSide]);
-  platform.position.y = -.3; platform.receiveShadow = true; arenaG.add(platform);
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(95, 48), toon(0xFFFFFF, { map:groundTex('#D9D0BD', 260) })); ground.material.map.repeat.set(8, 8);
-  ground.rotation.x = -Math.PI/2; ground.position.y = -.6; ground.receiveShadow = true; arenaG.add(ground);
-  const pillarMat = toon(0x6A645A);
-  for (let i=0;i<8;i++){ const a = i/8*TAU + .45, r = rand(15.5, 19), h = rand(2.5, 7.5); const p = prop(new THREE.BoxGeometry(1.1, h, 1.1), pillarMat, Math.cos(a)*r, -.6 + h/2, Math.sin(a)*r); p.rotation.y = rand(0, 1); p.rotation.z = rand(-.06, .06); }
-  stoneLanterns(4, 12.6, false);
-  for (let i=0;i<6;i++){ const a = i/6*TAU + .2 + (i % 2)*.12, r = 13.6; nobori(Math.cos(a)*r, Math.sin(a)*r, -a + Math.PI/2, i % 2 ? 0x1E1B18 : 0x9E2A20, i % 2 ? 0xE9E2D2 : 0x1E1B18, -.6); }
-  const toriiMat = toon(0x1E1B18);
-  prop(new THREE.CylinderGeometry(.42, .5, 9.5, 12), toriiMat, -4.6, 4.15, -27); prop(new THREE.CylinderGeometry(.42, .5, 9.5, 12), toriiMat, 4.6, 4.15, -27);
-  prop(new THREE.BoxGeometry(12.5, .55, .7), toriiMat, 0, 7.2, -27); prop(new THREE.BoxGeometry(15, .6, 1.1), toriiMat, 0, 8.9, -27); prop(new THREE.BoxGeometry(.6, 1.2, .5), toriiMat, 0, 8.05, -27);
-  skyline([['castle', .12, 1], ['pagoda', .46, .9], ['gate', .7, .7], ['pagoda', .88, .7]], '#B3AA98');
-  skyDisc(RED, 9, new THREE.Vector3(-46, 13, -66), .95);
-  cloudLayer(90, 26, 'rgba(236,226,206,1)', .7, .97);
-  backdrop(layerTex((g, W, H) => fillRidge(g, ridgeLine(W, 300, 70, 1.1, .8), H, '#CFC6B4', .6)), 74, 30, 12.4, .9, -4);
-  backdrop(layerTex((g, W, H) => { const p = ridgeLine(W, 330, 60, 2.7, .9); fillRidge(g, p, H, '#AFA797', .6); for (let i=0;i<14;i++){ const x = rand(0, W), q = p[Math.floor(x/4)]; paintPine(g, x, q[1] + 6, rand(.35, .6), '#8B8477'); } }), 62, 30, 12.4, .75, -3);
-  backdrop(layerTex((g, W, H) => { const p = ridgeLine(W, 370, 40, 4.3, 1.1); fillRidge(g, p, H, '#857E72', .55); for (let i=0;i<22;i++){ const x = rand(0, W), q = p[Math.floor(x/4)]; paintPine(g, x, q[1] + 8, rand(.5, 1), '#3E3A34'); } }), 50, 30, 12.4, .55, -2);
-  mistPlanes(.36, .2);
-  mistBanks(5, .22);
-  birds(7);
-  lightShafts(7, -.35, .12, -2.1, .8);
-  return { bg:0xEFE5CF, fog:[0xE9DDC6, 20, 76], hemi:[0xFFF6EA, 0xB9B1A2, .62], sun:[0xFFEFD8, .85, -14, 12, -10], wind:[-1.1, .45, .6], weather:'ash', gust:[5000, 9000, .7] };
-}
 // soft walls of mist that roll slowly across the ground with the wind
 function mistBanks(n, op){
   const tex = TEX_SOFT_BIG;
@@ -1289,68 +1261,6 @@ function mistPlanes(a, b){
     m.rotation.x = -Math.PI/2; m.position.y = y; arenaG.add(m); AR.anim.push(dt => { tex.offset.x += dt*.000012*sc; tex.offset.y -= dt*.000008; });
   }
 }
-function arenaOtlak(){
-  // the silver field: tall susuki grass with pale plumes, a low sun buried in cloud, the wind running through in waves
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(95, 48), toon(0xFFFFFF, { map:groundTex('#BDB5A2', 700) })); ground.material.map.repeat.set(10, 10);
-  ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; arenaG.add(ground);
-  makeGrass(16000, 26, { h:[.8, 1.55], inner:.7, col:[.86, .85, .8], tipLight:true });
-  const bark = toon(0x2A2622);
-  const trunk = prop(new THREE.CylinderGeometry(.22, .4, 7, 8), bark, -15, 3.5, -17); trunk.rotation.z = .12;
-  for (let i=0;i<5;i++){ const b = prop(new THREE.CylinderGeometry(.06, .14, rand(2.5, 4), 6), bark, -15 + rand(-.6, .6), rand(5, 7), -17); b.rotation.z = rand(-1.2, 1.2); b.rotation.x = rand(-.4, .4); }
-  const leaf = toon(0x3A3730);
-  const crown = new THREE.Group(); crown.position.set(-15, 0, -17); arenaG.add(crown);
-  for (let i=0;i<14;i++){ const s = prop(new THREE.DodecahedronGeometry(rand(1.1, 1.9), 0), leaf, rand(-4.2, 4.2), rand(6.6, 8) + (i % 3)*.5, rand(-2.4, 2.4), crown); s.scale.set(1.3, .32, 1.1); s.rotation.y = rand(0, 3); }
-  AR.anim.push((dt, now) => { crown.rotation.z = Math.sin(now*.0011)*.012 + WIND.gustNow*.03; crown.rotation.x = WIND.gustNow*.015; });
-  for (let i=0;i<7;i++){ const a = rand(0, TAU), r = rand(13, 22), st = prop(new THREE.DodecahedronGeometry(rand(.4, 1.1), 0), toon(0x77706A), Math.cos(a)*r, .1, Math.sin(a)*r); st.scale.y = .6; }
-  // a grave marker: someone they both knew
-  const marker = prop(new THREE.BoxGeometry(.35, 1.3, .2), toon(0x5A554D), 6.5, .65, -13); marker.rotation.y = .4; marker.rotation.z = .05;
-  hokora(8.4, -13.8, .5);
-  birds(5);
-  skyline([['tower', .2, .9], ['ruin', .52, 1], ['tower', .8, .7]], '#B2AA98');
-  skyDisc(GOLD, 9, new THREE.Vector3(-60, 5, -30), .97);
-  cloudLayer(88, 22, 'rgba(120,114,104,1)', .9, .97, true);
-  cloudLayer(80, 17, 'rgba(170,164,152,1)', .7, .95);
-  backdrop(layerTex((g, W, H) => fillRidge(g, ridgeLine(W, 320, 50, 5.2, .9), H, '#B2AA98', .6)), 74, 30, 12.4, .9, -4);
-  backdrop(layerTex((g, W, H) => fillRidge(g, ridgeLine(W, 380, 26, 1.7, 1.2), H, '#938B79', .6)), 60, 30, 12.4, .72, -3);
-  backdrop(layerTex((g, W, H) => { const p = ridgeLine(W, 420, 14, 3.3, 1.4); fillRidge(g, p, H, '#6E6757', .55); for (let i=0;i<10;i++){ const x = rand(0, W), q = p[Math.floor(x/4)]; paintPine(g, x, q[1] + 6, rand(.3, .55), '#4A443A'); } }), 48, 30, 12.4, .5, -2);
-  lightShafts(5, .5, .1, -2.6, .7);
-  return { bg:0xD8D0BF, fog:[0xD2C9B6, 16, 68], hemi:[0xF4EFE6, 0x9C9482, .66], sun:[0xFFE9C9, .7, -18, 7, -7], wind:[-2.2, .6, 1], weather:'leaf', gust:[3000, 6000, 1.2] };
-}
-function arenaKar(){
-  const snowTop = toon(0xFFFFFF, { map:snowStoneTexture() }), stoneSide = toon(0x7A746A);
-  const platform = new THREE.Mesh(new THREE.CylinderGeometry(11.2, 11.7, .6, 72), [stoneSide, snowTop, stoneSide]);
-  platform.position.y = -.3; platform.receiveShadow = true; arenaG.add(platform);
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(95, 48), toon(0xF3F0E8)); ground.rotation.x = -Math.PI/2; ground.position.y = -.6; ground.receiveShadow = true; arenaG.add(ground);
-  stoneLanterns(6, 12.8, true);
-  const wood = toon(0x2E2A25), snow = toon(0xF6F3EC), roofM = toon(0x1E1B18);
-  const T = new THREE.Group(); T.position.set(0, 0, -24); arenaG.add(T);
-  prop(new THREE.BoxGeometry(16, 1.2, 8), toon(0x6E685E), 0, .0, 0, T);
-  for (let i=0;i<6;i++) for (const zz of [-3, 3]) prop(new THREE.CylinderGeometry(.28, .3, 5, 10), wood, -7 + i*2.8, 3, zz, T);
-  const roofShape = (w, d) => { const s = new THREE.Shape(); s.moveTo(-w/2 - 1.6, 0); s.quadraticCurveTo(-w/2, .2, -w/2 + .6, 1.4); s.lineTo(w/2 - .6, 1.4); s.quadraticCurveTo(w/2, .2, w/2 + 1.6, 0); s.lineTo(w/2 + 1.6, -.35); s.lineTo(-w/2 - 1.6, -.35); return new THREE.ExtrudeGeometry(s, { depth:d, bevelEnabled:false }); };
-  prop(roofShape(15, 10), roofM, 0, 5.6, -5, T); const s1 = prop(roofShape(14.6, 10.1), snow, 0, 5.62 + .25, -5.05, T); s1.scale.set(.98, .35, 1);
-  prop(roofShape(9, 7), roofM, 0, 7.5, -3.5, T); const s2 = prop(roofShape(8.6, 7.1), snow, 0, 7.52 + .25, -3.55, T); s2.scale.set(.98, .35, 1);
-  prop(new THREE.BoxGeometry(10, 1.9, 5.6), wood, 0, 6.6, 0, T);
-  // a warm doorway: someone is still keeping the lamps
-  const door = prop(new THREE.PlaneGeometry(2.4, 3.2), new THREE.MeshBasicMaterial({ color:0xE8B35A }), 0, 2.2, 3.05, T); door.userData.noEdge = true;
-  const dl = new THREE.PointLight(0xFFC67A, 1.4, 12, 2); dl.position.set(0, 2.2, -19.8); arenaG.add(dl); AR.lanterns.push({ pl:dl, ph:1, base:1.4 });
-  // a bell hanging at the gate
-  const bell = new THREE.Group(); bell.position.set(-9, 4.2, -15); arenaG.add(bell);
-  prop(new THREE.BoxGeometry(.2, 4.2, .2), wood, -1.2, -2.1, 0, bell); prop(new THREE.BoxGeometry(.2, 4.2, .2), wood, 1.2, -2.1, 0, bell); prop(new THREE.BoxGeometry(3, .25, .3), roofM, 0, .1, 0, bell);
-  const bb = prop(new THREE.CylinderGeometry(.35, .55, 1, 12), toon(0x3A3631), 0, -.7, 0, bell);
-  AR.anim.push((dt, now) => { bb.rotation.z = Math.sin(now*.0013)*.03*(1 + WIND.gustNow); });
-  for (let i=0;i<10;i++){ const a = rand(0, TAU), r = rand(18, 30); if (Math.abs(Math.cos(a)*r) < 11 && Math.sin(a) < -.5) continue; pineTree(Math.cos(a)*r, Math.sin(a)*r, rand(5, 9), true); }
-  for (let i=0;i<9;i++){ const a = rand(0, TAU), r = rand(13.2, 17); if (Math.sin(a) < -.55 && Math.abs(Math.cos(a)*r) < 9) continue; snowRock(Math.cos(a)*r, Math.sin(a)*r, rand(.45, 1.1), -.6); }
-  birds(4);
-  skyline([['pagoda', .3, 1.1], ['gate', .62, .8], ['pagoda', .9, .8]], '#5E5A52');
-  skyDisc(0xF4EFE2, 5.5, new THREE.Vector3(30, 26, -60), .97);
-  cloudLayer(88, 24, 'rgba(90,86,80,1)', .8, .97, true);
-  backdrop(layerTex((g, W, H) => fillRidge(g, ridgeLine(W, 300, 70, 2.2, .8), H, '#57534C', .6)), 74, 30, 12.4, .9, -4);
-  backdrop(layerTex((g, W, H) => { const p = ridgeLine(W, 350, 50, 4.4, .9); fillRidge(g, p, H, '#403D37', .6); for (let i=0;i<16;i++){ const x = rand(0, W), q = p[Math.floor(x/4)]; paintPine(g, x, q[1] + 6, rand(.4, .7), '#2A2824'); } }), 60, 30, 12.4, .72, -3);
-  mistPlanes(.16, .08);
-  lightShafts(3, 0, .05, -1.2, .5);
-  AR.breath = true;
-  return { bg:0x35332F, fog:[0x3A3834, 16, 70], hemi:[0xC6CCD8, 0x3A3632, .42], sun:[0xDCE4F2, .58, 10, 22, -12], wind:[-.8, .2, .5], weather:'snow', gust:[4000, 8000, .9] };
-}
 function snowStoneTexture(){
   const t = stoneTexture(), c = t.image, g = c.getContext('2d');
   g.fillStyle = 'rgba(248,246,240,.72)'; g.fillRect(0, 0, c.width, c.height);
@@ -1358,9 +1268,11 @@ function snowStoneTexture(){
   t.needsUpdate = true; return t;
 }
 function pineTree(x, z, h, snowy){
+  const g = new THREE.Group(); g.position.set(x, 0, z); arenaG.add(g); const X = x, Z = z; x = 0; z = 0;
   const bark = toon(0x2A2622), needles = toon(snowy ? 0x3A3834 : 0x2F2C27), snow = toon(0xF4F1EA);
-  prop(new THREE.CylinderGeometry(.12, .22, h, 7), bark, x, h/2, z);
-  for (let k=0;k<4;k++){ const r = (1 - k/5)*h*.28, y = h*.35 + k*h*.17; prop(new THREE.ConeGeometry(r, h*.24, 8), needles, x, y, z); if (snowy) { const c = prop(new THREE.ConeGeometry(r*.9, h*.1, 8), snow, x, y + h*.08, z); } }
+  prop(new THREE.CylinderGeometry(.12, .22, h, 7), bark, x, h/2, z, g);
+  for (let k=0;k<4;k++){ const r = (1 - k/5)*h*.28, y = h*.35 + k*h*.17; prop(new THREE.ConeGeometry(r, h*.24, 8), needles, x, y, z, g); if (snowy) { const c = prop(new THREE.ConeGeometry(r*.9, h*.1, 8), snow, x, y + h*.08, z, g); } }
+  return g;
 }
 function arenaKopru(){
   ARENA.bounds = 'rect'; ARENA.hx = 2.55; ARENA.hz = 11.4;
@@ -1396,6 +1308,44 @@ function arenaKopru(){
       pud.rotation.x = -Math.PI/2; pud.position.y = .012; arenaG.add(pud); AR.puddle = pud;
     } catch(e) {}
   }
+  /* the bridge lands on rock at both ends: a cliff falls to the river, the deck rests on a stone footing, a roofed gate
+     stands at each end with a lantern, and a flagstone path runs on into the pines. The river runs in a gorge. */
+  const rockM = toon(0x4A453F), rockD = toon(0x3A3632), stoneM = toon(0x8A8378), roofM = toon(0x24211E);
+  const bankTex = groundTex('#6E685E', 700); bankTex.repeat.set(6, 4);
+  for (const s of [-1, 1]){
+    const top = new THREE.Mesh(new THREE.PlaneGeometry(60, 34), toon(0xFFFFFF, { map:bankTex })); top.rotation.x = -Math.PI/2; top.position.set(0, -.03, s*31.6); top.receiveShadow = true; arenaG.add(top);
+    // the cliff face, in broken blocks, from the bank down into the water
+    for (let i=0;i<17;i++){
+      const x = -27 + i*3.4 + rand(-.5, .5), w = rand(3.2, 4.6), h = rand(7.4, 8.4), dz = rand(1.6, 3.2);
+      const b = prop(new THREE.BoxGeometry(w, h, dz), i % 3 ? rockM : rockD, x, -h/2 + rand(-.05, .08), s*(14.7 + dz/2 + rand(0, .4)));
+      b.rotation.y = rand(-.08, .08); b.rotation.z = rand(-.04, .04);
+      if (Math.random() < .5){ const r = prop(new THREE.DodecahedronGeometry(rand(.8, 1.5), 0), rockD, x + rand(-1, 1), -rand(5.5, 7), s*rand(14.4, 15.2)); r.scale.y = .7; }
+    }
+    // the footing under the end of the deck
+    prop(new THREE.BoxGeometry(7, 1.1, 1.6), stoneM, 0, -.66, s*14.4);
+    // a roofed gate with a lantern on each post
+    const gz = s*16.4;
+    for (const sx of [-1, 1]){
+      prop(new THREE.CylinderGeometry(.17, .2, 4.2, 8), dark, 3.15*sx, 2.1, gz);
+      prop(new THREE.BoxGeometry(.6, .4, .6), stoneM, 3.15*sx, .2, gz);
+      const lan = prop(new THREE.BoxGeometry(.32, .42, .32), new THREE.MeshBasicMaterial({ color:0xE8B35A }), 3.15*sx - .42*sx, 2.3, gz + s*.1); lan.userData.noEdge = true;
+    }
+    prop(new THREE.BoxGeometry(7.4, .28, .34), dark, 0, 3.55, gz);
+    prop(new THREE.BoxGeometry(6.6, .22, .26), dark, 0, 2.9, gz);
+    const roof = prop(new THREE.ConeGeometry(5.4, 1.3, 4), roofM, 0, 4.45, gz); roof.rotation.y = Math.PI/4; roof.scale.set(1, 1, .32);
+    const pl = new THREE.PointLight(0xFFC67A, .9, 9, 2); pl.position.set(0, 2.4, gz + s*.6); arenaG.add(pl); AR.lanterns.push({ pl, ph:rand(0, TAU), base:.9 });
+    // the path on into the trees, and the trees
+    for (let k=0;k<9;k++){ const z = s*(17.6 + k*1.5), x = Math.sin(k*.55)*.9; const st = prop(new THREE.CylinderGeometry(rand(.55, .75), rand(.6, .8), .14, 7), stoneM, x + rand(-.15, .15), .02, z + rand(-.15, .15)); st.rotation.y = rand(0, 3); }
+    for (let k=0;k<16;k++){ const x = rand(4.5, 26)*(Math.random() < .5 ? -1 : 1), z = s*rand(18, 44); if (Math.abs(x) < 4) continue; pineTree(x, z, rand(4.5, 8.5), false); }
+    for (let k=0;k<10;k++){ const r = prop(new THREE.DodecahedronGeometry(rand(.5, 1.3), 0), rockD, rand(-24, 24), rand(.1, .4), s*rand(17, 30)); r.scale.y = rand(.45, .7); r.rotation.y = rand(0, 3); }
+  }
+  // the gorge: walls of rock on both sides of the river, rising above the bridge, pines along the rim
+  for (const sx of [-1, 1]) for (let i=0;i<10;i++){
+    const z = -16 + i*3.6 + rand(-.4, .4), h = rand(11, 15), w = rand(4, 6);
+    const b = prop(new THREE.DodecahedronGeometry(w, 0), i % 2 ? rockM : rockD, sx*(29 + rand(0, 3)), -8 + h/2, z); b.scale.set(.8, h/(2*w), 1); b.rotation.set(rand(-.2, .2), rand(0, 3), rand(-.1, .1));
+    if (Math.random() < .6){ const r2 = prop(new THREE.DodecahedronGeometry(rand(1.6, 2.8), 0), rockD, sx*(25.5 + rand(0, 1.5)), -7 + rand(0, 1.5), z + rand(-1.5, 1.5)); r2.scale.y = .7; }
+    if (i % 2 === 0) pineTree(sx*(28.5 + rand(0, 2)), z + rand(-1, 1), rand(5, 7.5), false).position.y = -8 + h;
+  }
   skyline([['pagoda', .25, 1], ['tower', .6, .8], ['castle', .85, .9]], '#7A746A');
   cloudLayer(88, 22, 'rgba(40,38,34,1)', 1, .97, true);
   cloudLayer(78, 17, 'rgba(70,66,60,1)', .9, .94, true);
@@ -1404,47 +1354,6 @@ function arenaKopru(){
   mistBanks(4, .18);
   AR.storm = { next:performance.now() + 2500, flash:0, seq:[] };
   return { bg:0x68645D, fog:[0x67625B, 7, 44], hemi:[0xDADAD8, 0x57524A, .52], sun:[0xE8ECF2, .3, -6, 22, 4], wind:[-2.4, .35, 1], weather:'rain', gust:[2500, 5500, 1.3] };
-}
-function arenaBambu(){
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(95, 48), toon(0xFFFFFF, { map:groundTex('#C9BB9E', 900) })); ground.material.map.repeat.set(10, 10);
-  ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; arenaG.add(ground);
-  const bt = (() => { const [c, g] = pcanvas(64, 512); g.fillStyle = '#8C8470'; g.fillRect(0, 0, 64, 512); const gr = g.createLinearGradient(0, 0, 64, 0); gr.addColorStop(0, 'rgba(21,19,15,.35)'); gr.addColorStop(.4, 'rgba(255,255,255,.1)'); gr.addColorStop(1, 'rgba(21,19,15,.45)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 512); for (let y=30; y<512; y+=rand(55, 80)){ g.fillStyle = 'rgba(21,19,15,.85)'; g.fillRect(0, y, 64, 5); g.fillStyle = 'rgba(255,251,240,.35)'; g.fillRect(0, y + 5, 64, 2); } const t = ptex(c); t.wrapT = THREE.RepeatWrapping; t.repeat.set(1, 3); return t; })();
-  // stalks sway from the root: the higher, the further, and a gust leans the whole grove
-  const SU = { uT:{ value:0 }, uW:{ value:new THREE.Vector2() } };
-  const sm = toon(0xFFFFFF, { map:bt });
-  sm.onBeforeCompile = sh => { Object.assign(sh.uniforms, SU); sh.vertexShader = 'uniform float uT; uniform vec2 uW;\n' + sh.vertexShader.replace('#include <project_vertex>', `
-      vec4 wp = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
-      vec4 root = modelMatrix * instanceMatrix * vec4(0.0, -0.5, 0.0, 1.0);
-      float h = max(0.0, wp.y - root.y), hh = h*h*.004;
-      wp.xz += (uW*(1.0 + .35*sin(uT*1.3 + root.x*.4)) + vec2(sin(uT*.9 + root.z*.3), cos(uT*.7 + root.x*.3))*.35)*hh;
-      vec4 mvPosition = viewMatrix * wp; gl_Position = projectionMatrix * mvPosition;`); };
-  sm.customProgramCacheKey = () => 'bamboo';
-  const N = 260, stalk = new THREE.InstancedMesh(new THREE.CylinderGeometry(.1, .12, 1, 7, 6, true), sm, N);
-  const d = new THREE.Object3D(), spots = [];
-  for (let i=0;i<N;i++){ const a = rand(0, TAU), r = 12.5 + Math.pow(Math.random(), .7)*20;
-    const h = rand(12, 22), s = rand(.8, 1.5); d.position.set(Math.cos(a)*r, h/2, Math.sin(a)*r); d.rotation.set(rand(-.06, .06), rand(0, TAU), rand(-.06, .06)); d.scale.set(s, h, s); d.updateMatrix(); stalk.setMatrixAt(i, d.matrix); spots.push([d.position.x, h, d.position.z]); }
-  stalk.castShadow = true; stalk.receiveShadow = true; stalk.userData.noEdge = true; arenaG.add(stalk);
-  const lt = (() => { const [c, g] = pcanvas(256, 256); for (let i=0;i<26;i++){ const a = rand(-.9, .9) + (Math.random() < .5 ? 0 : Math.PI), x = 128 + rand(-30, 30), y = 128 + rand(-30, 30), l = rand(50, 110); pbrush(g, [[x, y], [x + Math.cos(a)*l, y + Math.sin(a)*l*.45 + rand(0, 20)]], rand(9, 15), '#2C2A24', rand(.7, 1)); } return ptex(c); })();
-  const LN = 380, leaves = new THREE.InstancedMesh(new THREE.PlaneGeometry(3.2, 3.2), new THREE.MeshBasicMaterial({ map:lt, transparent:true, alphaTest:.35, side:THREE.DoubleSide, depthWrite:true }), LN);
-  for (let i=0;i<LN;i++){ const sp = spots[i % N]; d.position.set(sp[0] + rand(-1.2, 1.2), sp[1]*rand(.55, 1), sp[2] + rand(-1.2, 1.2)); d.rotation.set(rand(-.6, .6), rand(0, TAU), rand(-.6, .6)); d.scale.setScalar(rand(.7, 1.4)); d.updateMatrix(); leaves.setMatrixAt(i, d.matrix); }
-  leaves.userData.noEdge = true; leaves.castShadow = true; arenaG.add(leaves);
-  AR.anim.push((dt, now) => { SU.uT.value = now*.001; SU.uW.value.set(WIND.x*(.25 + WIND.gustNow*.8), WIND.z*(.25 + WIND.gustNow*.8)); leaves.position.x = WIND.x*(.25 + WIND.gustNow*.8)*.9; leaves.rotation.y = Math.sin(now*.0004)*.012; });
-  bambooFence(.3, 1.5, 12.2); bambooFence(3.3, 4.6, 12.2);
-  stoneLanterns(2, 11.9, true);
-  // fireflies waking at dusk
-  const FN = 60, fp = new Float32Array(FN*3), fc = new Float32Array(FN*3), fly = [];
-  for (let i=0;i<FN;i++){ fly.push({ x:rand(-12, 12), y:rand(.4, 2.6), z:rand(-12, 12), ph:rand(0, TAU), sp:rand(.4, 1) }); }
-  const fg = new THREE.BufferGeometry(); fg.setAttribute('position', new THREE.BufferAttribute(fp, 3)); fg.setAttribute('color', new THREE.BufferAttribute(fc, 3));
-  const flies = new THREE.Points(fg, new THREE.PointsMaterial({ size:.09, vertexColors:true, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending }));
-  flies.frustumCulled = false; arenaG.add(flies);
-  AR.anim.push((dt, now) => { const t = now*.001; fly.forEach((f, i) => { const x = f.x + Math.sin(t*f.sp + f.ph)*1.2 + WIND.x*WIND.gustNow*.4, y = f.y + Math.sin(t*f.sp*1.7 + f.ph)*.3, z = f.z + Math.cos(t*f.sp*.8 + f.ph)*1.2; fp.set([x, y, z], i*3); const b = Math.max(0, Math.sin(t*2.2*f.sp + f.ph*3)); fc.set([.95*b, .72*b, .28*b], i*3); }); fg.attributes.position.needsUpdate = true; fg.attributes.color.needsUpdate = true; });
-  skyDisc(0xD9A55C, 7, new THREE.Vector3(58, 7, -24), .97);
-  backdrop(layerTex((g, W, H) => { for (let i=0;i<150;i++) paintBamboo(g, rand(0, W), H, rand(40, 160), rand(1.5, 3), '#BDB29A'); }), 74, 36, 14, .9, -4);
-  backdrop(layerTex((g, W, H) => { for (let i=0;i<110;i++) paintBamboo(g, rand(0, W), H, rand(10, 120), rand(2.5, 4.5), '#958A74'); }), 60, 36, 14, .72, -3);
-  backdrop(layerTex((g, W, H) => { for (let i=0;i<80;i++) paintBamboo(g, rand(0, W), H, rand(0, 80), rand(4, 6.5), '#5A5244'); }), 46, 36, 14, .5, -2);
-  mistPlanes(.26, .14);
-  lightShafts(9, -.55, .13, .2, 1.4);
-  return { bg:0xE0D0B0, fog:[0xD6C4A2, 11, 58], hemi:[0xFFF0DA, 0x8F8165, .52], sun:[0xFFE2BC, .9, 16, 7, -5], wind:[-.8, .3, .6], weather:'leaf', gust:[4000, 8000, 1] };
 }
 function arenaGul(){
   // a walled rose garden gone wild, a raked-gravel circle at its heart, and a wind that will not stop
@@ -1476,7 +1385,38 @@ function arenaGul(){
   prop(new THREE.ExtrudeGeometry(gs, { depth:.6, bevelEnabled:false, curveSegments:28 }), wallM, 0, 0, -23.3);
   const gc = prop(new THREE.BoxGeometry(6, .3, 1), capM, 0, 3.52, -23); gc.rotation.y = 0;
   pond(-14.5, 9.5, 2.6);
-  stoneLanterns(3, 12.4, false);
+  stoneLanterns(3, 12.4, true);
+  // rose arches over the gaps in the hedge, heavy with bloom
+  const archM = toon(0x2A2622);
+  for (const a of [Math.PI*.25, Math.PI*.75, Math.PI*1.25, Math.PI*1.75]){
+    const g = new THREE.Group(); g.position.set(Math.cos(a)*12.9, 0, Math.sin(a)*12.9); g.rotation.y = -a + Math.PI/2; arenaG.add(g);
+    for (const sx of [-1, 1]) prop(new THREE.BoxGeometry(.14, 2.4, .14), archM, 1.15*sx, 1.2, 0, g);
+    const arc = prop(new THREE.TorusGeometry(1.15, .07, 6, 18, Math.PI), archM, 0, 2.4, 0, g);
+    for (let k=0;k<26;k++){ const t = rand(0, Math.PI), r = 1.15 + rand(-.12, .12), y = k < 18 ? 2.4 + Math.sin(t)*r : rand(.4, 2.3), x = k < 18 ? Math.cos(t)*r : (Math.random() < .5 ? -1.15 : 1.15) + rand(-.1, .1);
+      prop(new THREE.IcosahedronGeometry(rand(.1, .17), 0), k % 4 ? roseM : leafM, x, y, rand(-.14, .14), g); }
+  }
+  // an old maple gone red, leaning over the wall
+  { const mx = -9.5, mz = -17.5, bark = toon(0x2A2622), leafR = toon(0xB4462A), leafO = toon(0xC8622E);
+    const tr = prop(new THREE.CylinderGeometry(.32, .52, 4.2, 8), bark, mx, 2.1, mz); tr.rotation.z = .12;
+    for (const [bx, by, bz, rz, rx] of [[-.9, 4, .2, .7, .1], [.9, 4.3, -.2, -.6, -.1], [0, 4.6, .8, .05, .6]]){ const br = prop(new THREE.CylinderGeometry(.12, .22, 2.6, 6), bark, mx + bx*.6, by, mz + bz*.6); br.rotation.set(rx, 0, rz); }
+    const LF = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(.55, 0), leafR, 70), LO = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(.45, 0), leafO, 40);
+    for (let k=0;k<110;k++){ const a = rand(0, TAU), r = Math.sqrt(Math.random())*3.4; d.position.set(mx + Math.cos(a)*r, 5 + rand(-.8, 1.4) - r*.25, mz + Math.sin(a)*r*.8); d.rotation.set(rand(0, 3), rand(0, 3), 0); d.scale.set(rand(.8, 1.4), rand(.6, 1), rand(.8, 1.4)); d.updateMatrix(); (k < 70 ? LF : LO).setMatrixAt(k < 70 ? k : k - 70, d.matrix); }
+    for (const m of [LF, LO]){ m.castShadow = true; arenaG.add(m); }
+    AR.anim.push((dt, now) => { LF.rotation.y = LO.rotation.y = 0; LF.position.x = LO.position.x = Math.sin(now*.0011)*.04*(1 + WIND.gustNow*2); });
+  }
+  // a pavilion in the corner of the garden, a lantern under its eaves
+  { const pv = new THREE.Group(); pv.position.set(16.5, 0, -9.5); pv.rotation.y = .5; arenaG.add(pv);
+    prop(new THREE.BoxGeometry(3.6, .3, 3.6), wallM, 0, .15, 0, pv);
+    for (const [x, z] of [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5]]) prop(new THREE.BoxGeometry(.18, 2.6, .18), capM, x, 1.6, z, pv);
+    const rf = prop(new THREE.ConeGeometry(3.3, 1.5, 4), capM, 0, 3.6, 0, pv); rf.rotation.y = Math.PI/4;
+    const lan = prop(new THREE.CylinderGeometry(.2, .2, .36, 10), new THREE.MeshBasicMaterial({ color:0xE8B35A }), 0, 2.4, 0, pv); lan.userData.noEdge = true;
+    const pl = new THREE.PointLight(0xFFC67A, .8, 7, 2); pl.position.set(0, 2.4, 0); pv.add(pl); AR.lanterns.push({ pl, ph:rand(0, TAU), base:.8 }); }
+  // stepping stones from the moon gate to the circle
+  for (let k=0;k<7;k++){ const z = -22.3 + k*1.55, x = Math.sin(k*.9)*.5; const st = prop(new THREE.CylinderGeometry(rand(.42, .58), rand(.48, .62), .12, 7), wallM, x, .03, z); st.rotation.y = rand(0, 3); }
+  // fallen petals drifted against the edge of the gravel, a few scattered across it
+  { const P = new THREE.InstancedMesh(new THREE.CircleGeometry(.1, 5), new THREE.MeshBasicMaterial({ color:0xB8281F, side:THREE.DoubleSide }), 900); P.userData.noEdge = true;
+    for (let k=0;k<900;k++){ const a = rand(0, TAU), r = k < 650 ? 11.4 - Math.pow(Math.random(), 2.2)*3.2 : rand(0, 11.2); d.position.set(Math.cos(a)*r, .012 + k*.000002, Math.sin(a)*r); d.rotation.set(-Math.PI/2, 0, rand(0, TAU)); d.scale.set(rand(.7, 1.3), rand(.5, .9), 1); d.updateMatrix(); P.setMatrixAt(k, d.matrix); }
+    arenaG.add(P); }
   const perg = new THREE.Group(); perg.position.set(14, 0, 8); perg.rotation.y = -.9; arenaG.add(perg);
   for (const [x, z] of [[-2, -1], [2, -1], [-2, 1], [2, 1]]) prop(new THREE.BoxGeometry(.2, 3, .2), capM, x, 1.5, z, perg);
   for (let i=0;i<7;i++) prop(new THREE.BoxGeometry(.12, .12, 2.6), capM, -1.8 + i*.6, 3.05, 0, perg);
@@ -1486,9 +1426,83 @@ function arenaGul(){
   cloudLayer(88, 22, 'rgba(100,96,90,1)', 1, .97, true);
   cloudLayer(78, 16, 'rgba(150,145,136,1)', .8, .93);
   backdrop(layerTex((g, W, H) => { const p = ridgeLine(W, 330, 60, 7.7, .8); fillRidge(g, p, H, '#A39C8F', .6); for (let i=0;i<20;i++){ const x = rand(0, W), q = p[Math.floor(x/4)]; paintPine(g, x, q[1] + 8, rand(.3, .6), '#7C756A'); } }), 72, 30, 12.4, .88, -4);
-  mistBanks(3, .14);
-  lightShafts(4, .6, .08, 2.4, .8);
-  return { bg:0xC9C2B5, fog:[0xC3BCAE, 12, 60], hemi:[0xF0EDE6, 0x7C766A, .62], sun:[0xF3EEE6, .55, 12, 16, 14], wind:[-3, .9, 1.2], weather:'rose', gust:[2200, 4500, 1.5] };
+  mistBanks(4, .13);
+  lightShafts(7, .62, .1, 2.4, .9);
+  return { bg:0xCDBDAE, fog:[0xC9B8A8, 13, 62], hemi:[0xF6ECE2, 0x7A6C64, .56], sun:[0xFFE6C8, .82, 17, 8, 19], wind:[-3, .9, 1.2], weather:'rose', gust:[2200, 4500, 1.5] };
+}
+function arenaAy(){
+  /* a flooded shrine under a blood moon: a ring of flagstones in still black water, a torii standing out in the lake
+     against the moon, paper lanterns drifting on the water, red spider lilies on the stones, pale ash falling */
+  const st = (() => { const N = 1024, [c, g] = pcanvas(N, N); g.fillStyle = '#8A847C'; g.fillRect(0, 0, N, N);
+    g.strokeStyle = 'rgba(21,19,15,.5)'; g.lineWidth = 3;
+    for (let ring=0; ring<10; ring++){ const r0 = 30 + ring*48, n = 6 + ring*6; g.beginPath(); g.arc(N/2, N/2, r0, 0, TAU); g.stroke();
+      for (let k=0;k<n;k++){ const a = k/n*TAU + ring*.37; g.beginPath(); g.moveTo(N/2 + Math.cos(a)*r0, N/2 + Math.sin(a)*r0); g.lineTo(N/2 + Math.cos(a)*(r0 + 48), N/2 + Math.sin(a)*(r0 + 48)); g.stroke(); } }
+    for (let i=0;i<70;i++){ const x = rand(0, N), y = rand(0, N), r = rand(30, 140), gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, Math.random() < .6 ? 'rgba(21,19,15,.16)' : 'rgba(255,251,240,.07)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r*2, r*2); }
+    g.strokeStyle = 'rgba(200,55,43,.55)'; g.lineWidth = 6; g.beginPath(); g.arc(N/2, N/2, 455, 0, TAU); g.stroke();       // the old ring carved and painted
+    g.lineWidth = 2; g.beginPath(); g.arc(N/2, N/2, 470, 0, TAU); g.stroke();
+    for (let i=0;i<9000;i++){ g.fillStyle = Math.random() > .5 ? `rgba(255,251,240,${Math.random()*.06})` : `rgba(21,19,15,${Math.random()*.08})`; g.fillRect(Math.random()*N, Math.random()*N, 1 + Math.random()*2, 1 + Math.random()*2); }
+    return ptex(c); })();
+  const sideM = toon(0x5A5650), stoneD = toon(0x3A3632), rockM = toon(0x4A453F), d = new THREE.Object3D();
+  const plat = new THREE.Mesh(new THREE.CylinderGeometry(11.6, 11.9, .5, 72), [sideM, toon(0xFFFFFF, { map:st }), sideM]); plat.position.y = -.25; plat.receiveShadow = true; plat.castShadow = true; arenaG.add(plat);
+  prop(new THREE.CylinderGeometry(12.7, 13, .3, 72), stoneD, 0, -.45, 0);
+  // the lake: a dark mirror when the machine allows it, otherwise flat black water
+  let water = null;
+  if (THREE.Reflector){
+    try {
+      const shader = { uniforms:{ color:{ value:null }, tDiffuse:{ value:null }, textureMatrix:{ value:null } },
+        vertexShader:'uniform mat4 textureMatrix; varying vec4 vUv; varying vec3 vW; void main(){ vUv = textureMatrix*vec4(position, 1.0); vW = (modelMatrix*vec4(position, 1.0)).xyz; gl_Position = projectionMatrix*modelViewMatrix*vec4(position, 1.0); }',
+        fragmentShader:'uniform vec3 color; uniform sampler2D tDiffuse; varying vec4 vUv; varying vec3 vW; void main(){ vec4 p = vUv; p.x += sin(vW.z*1.7 + vW.x*.3)*.6; vec4 b = texture2DProj(tDiffuse, p); gl_FragColor = vec4(mix(color, b.rgb, .58), 1.0); }' };
+      water = new THREE.Reflector(new THREE.PlaneGeometry(220, 220), { textureWidth:512, textureHeight:512, clipBias:.003, color:0x141218, shader });
+      AR.puddle = water;
+    } catch(e) { water = null; }
+  }
+  if (!water) water = new THREE.Mesh(new THREE.PlaneGeometry(220, 220), new THREE.MeshBasicMaterial({ color:0x18161A }));
+  water.rotation.x = -Math.PI/2; water.position.y = -.42; water.userData.noEdge = true; arenaG.add(water);
+  // the great torii out in the water, between the fight and the moon
+  { const toriiM = toon(0xB8322A), blackM = toon(0x2A2622), tz = -27;
+    for (const sx of [-1, 1]){ prop(new THREE.CylinderGeometry(.42, .52, 10.4, 12), toriiM, 4.4*sx, 4.6, tz); prop(new THREE.CylinderGeometry(.7, .8, .8, 10), blackM, 4.4*sx, -.2, tz); }
+    const kas = prop(new THREE.BoxGeometry(13.4, .7, 1.1), blackM, 0, 9.95, tz);
+    for (const sx of [-1, 1]){ const tip = prop(new THREE.BoxGeometry(1.6, .6, 1.05), blackM, 6.9*sx, 10.15, tz); tip.rotation.z = -.16*sx; }
+    prop(new THREE.BoxGeometry(12.2, .5, .9), toriiM, 0, 9.35, tz);
+    prop(new THREE.BoxGeometry(10.4, .45, .6), toriiM, 0, 7.6, tz);
+    prop(new THREE.BoxGeometry(.5, 1.3, .5), toriiM, 0, 8.45, tz); }
+  // the moon: low, enormous, red, with a wide glow round it
+  const moonPos = new THREE.Vector3(-4, 23, -100);
+  skyDisc(RED, 16, moonPos, .985);
+  { const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map:TEX_SOFT, color:0xC8372B, transparent:true, opacity:.5, depthWrite:false, blending:THREE.AdditiveBlending, fog:false }));
+    glow.scale.set(110, 110, 1); glow.position.copy(moonPos).multiplyScalar(1.02); glow.renderOrder = -6; arenaG.add(glow); AR.layers.push({ m:glow, k:.985, base:glow.position.clone() }); }
+  // rock islands with spider lilies, and lilies along the steps of the platform
+  const lily = [], stemM = toon(0x2E3A2A), petalM = toon(0xC8372B);
+  for (let i=0;i<9;i++){ const a = rand(0, TAU), r = rand(15, 24); if (Math.sin(a) < -.6 && Math.abs(Math.cos(a)) < .45) continue;
+    const x = Math.cos(a)*r, z = Math.sin(a)*r, s = rand(1, 2.2), rk = prop(new THREE.DodecahedronGeometry(s, 0), rockM, x, -.5, z); rk.scale.y = .45; rk.rotation.y = rand(0, 3);
+    for (let k=0;k<Math.round(s*5);k++) lily.push([x + rand(-s, s)*.6, s*.42 - .45, z + rand(-s, s)*.6]); }
+  for (let k=0;k<70;k++){ const a = rand(0, TAU), r = rand(12.15, 12.6); lily.push([Math.cos(a)*r, -.3, Math.sin(a)*r]); }
+  { const PET = new THREE.InstancedMesh(new THREE.ConeGeometry(.018, .24, 3), petalM, lily.length*6), STEM = new THREE.InstancedMesh(new THREE.CylinderGeometry(.008, .01, .42, 3), stemM, lily.length);
+    let pi = 0;
+    lily.forEach(([x, y, z], i) => {
+      d.position.set(x, y + .21, z); d.rotation.set(rand(-.15, .15), 0, rand(-.15, .15)); d.scale.setScalar(1); d.updateMatrix(); STEM.setMatrixAt(i, d.matrix);
+      for (let k=0;k<6;k++){ const a = k/6*TAU + rand(-.2, .2); d.position.set(x + Math.cos(a)*.07, y + .46, z + Math.sin(a)*.07); d.rotation.set(0, -a, 0); d.rotateZ(-1.1 - rand(0, .5)); d.updateMatrix(); PET.setMatrixAt(pi++, d.matrix); }
+    });
+    arenaG.add(PET); arenaG.add(STEM); }
+  // paper lanterns set adrift on the lake
+  { const lanM = new THREE.MeshBasicMaterial({ color:0xE8B35A }), baseM = toon(0x2A2622), lans = [];
+    for (let i=0;i<16;i++){ const g = new THREE.Group(); const a = rand(0, TAU), r = rand(14, 34); g.position.set(Math.cos(a)*r, -.36, Math.sin(a)*r); arenaG.add(g);
+      prop(new THREE.BoxGeometry(.36, .06, .36), baseM, 0, 0, 0, g); const l = prop(new THREE.BoxGeometry(.26, .3, .26), lanM, 0, .2, 0, g); l.userData.noEdge = true;
+      lans.push({ g, a, r, sp:rand(.006, .014)*(Math.random() < .5 ? 1 : -1), ph:rand(0, TAU) }); }
+    AR.anim.push((dt, now) => { for (const L of lans){ L.a += L.sp*dt*.001; L.g.position.set(Math.cos(L.a)*L.r, -.36 + Math.sin(now*.0012 + L.ph)*.03, Math.sin(L.a)*L.r); L.g.rotation.y += dt*.00012; } }); }
+  stoneLanterns(4, 11.25, true);
+  // the far shore: black pines on low hills, a pagoda against the sky, cloud drawn thin across the moon
+  skyline([['pagoda', .48, 1.2], ['gate', .7, .7], ['castle', .2, .9]], '#2A2228');
+  cloudLayer(90, 22, 'rgba(26,18,24,1)', .85, .985, true);
+  backdrop(layerTex((g, W, H) => { const p = ridgeLine(W, 300, 70, 4.3, .6); fillRidge(g, p, H, '#2E262C', .75); for (let i=0;i<24;i++){ const x = rand(0, W), q = p[Math.floor(x/4)]; paintPine(g, x, q[1] + 8, rand(.4, .8), '#1A1418'); } }), 70, 30, 12.4, .9, -4);
+  backdrop(layerTex((g, W, H) => { const p = ridgeLine(W, 360, 50, 8.1, .5); fillRidge(g, p, H, '#1C161A', .8); for (let i=0;i<30;i++){ const x = rand(0, W), q = p[Math.floor(x/4)]; paintPine(g, x, q[1] + 8, rand(.5, 1), '#120E10'); } }), 58, 30, 10.6, .7, -3);
+  // a slow low mist over the water, tinted by the moon
+  for (let i=0;i<6;i++){
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:TEX_SOFT_BIG, color:0x9A7A84, transparent:true, opacity:rand(.08, .16), depthWrite:false, fog:false }));
+    sp.scale.set(rand(18, 30), rand(2.5, 4), 1); sp.position.set(rand(-34, 34), rand(.2, 1), rand(-34, 34)); arenaG.add(sp);
+    AR.anim.push(dt => { sp.position.x += dt*.0004; if (sp.position.x > 36) sp.position.x = -36; });
+  }
+  return { bg:0x231F22, fog:[0x24202A, 16, 74], hemi:[0xA8A0B8, 0x3A2A2E, .62], sun:[0xFFA488, 1.05, -4, 16, -34], wind:[-.4, .2, .3], weather:'moon', gust:[6000, 11000, .4] };
 }
 /* ---- grass that parts for the fighters, and bows in waves when a gust runs through it ---- */
 function makeGrass(n, rMax, o){
@@ -1534,7 +1548,7 @@ function setWeather(mode){
   if (WX.mesh){ scene.remove(WX.mesh); WX.mesh.geometry.dispose(); WX.mesh.material.dispose(); WX.mesh = null; }
   if (WX.rain){ scene.remove(WX.rain); WX.rain.geometry.dispose(); WX.rain.material.dispose(); WX.rain = null; }
   WX.mode = mode; WX.parts = [];
-  const spec = { ash:[170, .06, .04, 0x2A2622], seed:[140, .05, .05, 0xF2ECDF], snow:[520, .055, .055, 0xFFFFFF], leaf:[160, .2, .045, 0x3A3730], rain:[110, .05, .04, 0x2A2622], rose:[760, .085, .06, 0xB3261E] }[mode] || [170, .06, .04, 0x2A2622];
+  const spec = { moon:[240, .05, .04, 0xD8CCC6], ash:[170, .06, .04, 0x2A2622], seed:[140, .05, .05, 0xF2ECDF], snow:[520, .055, .055, 0xFFFFFF], leaf:[160, .2, .045, 0x3A3730], rain:[110, .05, .04, 0x2A2622], rose:[760, .085, .06, 0xB3261E] }[mode] || [170, .06, .04, 0x2A2622];
   WX.n = spec[0];
   WX.mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(spec[1], spec[2]), new THREE.MeshBasicMaterial({ color:spec[3], side:THREE.DoubleSide }), WX.n);
   WX.mesh.frustumCulled = false; WX.mesh.userData.noEdge = true; scene.add(WX.mesh);
@@ -1613,14 +1627,14 @@ const TEX_BOLT = (() => { const [c, g] = pcanvas(128, 512), segs = [];
     for (const q of segs){ g.lineWidth = w*q[4]; g.beginPath(); g.moveTo(q[0], q[1]); g.lineTo(q[2], q[3]); g.stroke(); } }
   return ptex(c); })();
 function buildArena(key){
-  if (!ARENAS[key]) key = 'avlu';
+  if (!ARENAS[key]) key = 'gul';
   if (arenaG){ scene.remove(arenaG); arenaG.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material){ for (const m of [].concat(o.material)){ if (m.map && m.map !== TEX_SOFT_BIG && m.map !== TEX_RAY && m.map !== TEX_BOLT && m.map !== TEX_SOFT) m.map.dispose(); m.dispose(); } } }); if (AR.puddle && AR.puddle.getRenderTarget) AR.puddle.getRenderTarget().dispose(); }
   for (const sp of WX.splash) scene.remove(sp.m); WX.splash = [];
   for (const b of AR.puffs || []) scene.remove(b.sp); AR.puffs = [];
   arenaG = new THREE.Group(); scene.add(arenaG);
   AR.layers = []; AR.rays = []; AR.anim = []; AR.grass = null; AR.lanterns = []; AR.puddle = null; AR.storm = null; AR.breath = false; AR.bolt = null;
   ARENA = { key, bounds:'circle', r:ARENA_R };
-  const cfg = ({ avlu:arenaAvlu, otlak:arenaOtlak, kar:arenaKar, kopru:arenaKopru, bambu:arenaBambu, gul:arenaGul })[key]();
+  const cfg = ({ kopru:arenaKopru, gul:arenaGul, ay:arenaAy })[key]();
   scene.background = new THREE.Color(cfg.bg);
   scene.fog = new THREE.Fog(cfg.fog[0], cfg.fog[1], cfg.fog[2]);
   hemiLight.color.setHex(cfg.hemi[0]); hemiLight.groundColor.setHex(cfg.hemi[1]); hemiLight.intensity = cfg.hemi[2];
@@ -1726,6 +1740,10 @@ function skyline(items, color){
    lights change, every solid material is recoloured by its original tone (hex), the painted textures are tinted (the ground
    and the backdrop layers, by distance). Original colours are kept on the material so switching back is exact. */
 const COLOR_ARENA = {
+  ay: { paint:{ ground:0x8A7A80, sky:[0x05050C, 0x5A1420, 0x0E080C], bg:0x2A1218, fog:0x24121A, sun:0xFF7A5A, hemi:[0x9A86B0, 0x2A1018], motes:0xFF9A7A, lay:{ '-6':0x3A1A24, '-5':0x2E1620, '-4':0x1C1018, '-3':0x140C12 } },
+        sky:[0x08080E, 0x4A1A22, 0x100A0E], bg:0x221418, fog:0x22161C, hemi:[0x8C86A0, 0x2A1A1E], sun:0xFF8A6A, ground:0x8A8280, rays:0xFF9A7A,
+        lay:{ '-6':0x3A2228, '-5':0x301C22, '-4':0x1E1418, '-3':0x161014 },
+        hex:{ '5a5650':0x5E5652, '3a3632':0x3C3634, 'b8322a':0xB8322A, '2a2622':0x241E1E, '4a453f':0x3E3836 } },
   avlu: { paint:{ ground:0xD2BC98, sky:[0x2C6A9E, 0xF6C27A, 0xC08A5A], bg:0xF0C890, fog:0xE8B983, sun:0xFFC98A, hemi:[0xFFE2B8, 0x56688A], motes:0xFFD890, lay:{ '-6':0xFFDDB0, '-5':0xFFE4C0, '-4':0x7090B8, '-3':0x5E8A70, '-2':0x4C6E3E } },
           sky:[0x8FB2D4, 0xF3D5A4, 0xB9A07C], bg:0xEBD2A6, fog:0xE4C9A0, hemi:[0xFFF0D8, 0x8A7658], sun:0xFFE0B0, ground:0xDCC39A, rays:0xFFE9BE,
            lay:{ '-6':0xF7E4C2, '-5':0xF1DDBA, '-4':0x9DB0C6, '-3':0x8C9E86, '-2':0x6F7F58 },
@@ -2521,7 +2539,8 @@ const Sfx = (function(){
     kar:   { wind:0, howl:0, rustle:0, drone:[41.2, .026], crick:0, bell:[18, 28, .9], chime:0 },
     kopru: { wind:0, howl:0, rustle:0, rain:.13, river:.08, drone:[43.65, .022], crick:0, bell:0, chime:0 },
     bambu: { wind:0, howl:0, rustle:.03, drone:[58.27, .016], crick:.03, bell:0, chime:0, knock:1 },
-    gul:   { wind:0, howl:0, rustle:.06, drone:[46.25, .02], crick:0, bell:0, chime:1 },
+    gul:   { wind:0, howl:0, rustle:.06, drone:[46.25, .02], crick:.012, bell:0, chime:1 },
+    ay:    { wind:0, howl:0, rustle:0, river:.025, drone:[41.2, .03], crick:.024, bell:[16, 26, 1], chime:0 },
   };
   const AMB = { want:null, key:null, bus:null, L:{}, stop:[], tick:0, nextBell:0, nextChime:0, nextKnock:0 };
   let noiseLong = null, brownLong = null, crickBuf = null;
@@ -2623,6 +2642,7 @@ const Sfx = (function(){
       kopru: [[293.7, .6], [311.1, .9], [392, .6], [440, 1.8], [311.1, 2.2]],
       bambu: [[587.3, .5], [523.3, .5], [440, 1.2], [493.9, .5], [440, 2.4]],
       gul:   [[392, .8], [440, .5], [523.3, 1.3], [587.3, .5], [523.3, .5], [440, 2.6]],
+      ay:    [[349.2, 1.3], [311.1, .6], [293.7, 1.6], [261.6, .5], [233.1, .5], [293.7, 2.8]],
     }[key] || [[440, 1], [523.3, 2]];
     const bus = gainN(.1); bus.connect(out); if (revIn){ const r = gainN(1.3); bus.connect(r); r.connect(revIn); }
     let t = ac.currentTime + .15;
@@ -6356,7 +6376,7 @@ function updateCamera(rdt, now){
     camTarget.set(A.bpos.x - A.dir.x*bk + rx*lerp(1.15, 1.9, q), lerp(1.3, 2.6, q), A.bpos.z - A.dir.z*bk + rz*lerp(1.15, 1.9, q));
     lookTarget.set(A.bpos.x + A.dir.x*.3, lerp(.85, .35, q), A.bpos.z + A.dir.z*.3);
   } else if (G.phase === 'intro' && G.cine && (G.cine.long ? G.phaseT < CINE_LONG.draw : G.phaseT < 900)){
-    const t = G.phaseT, C = CINE_LONG, E = (ARENAS[ARENA.key] || ARENAS.avlu).est;
+    const t = G.phaseT, C = CINE_LONG, E = (ARENAS[ARENA.key] || ARENAS.gul).est;
     const shot = !G.cine.long ? 'sweep' : t < C.est ? 'est' : t < C.walk ? 'dolly' : t < C.bow ? 'stare' : 'rival';
     if (shot === 'est'){
       // the establishing crane: high and wide, sinking toward the pair as they walk in
@@ -6696,7 +6716,7 @@ function cineEnd(){
   $('#app').classList.remove('cine'); $('#hud').classList.remove('dim');
 }
 // the arena's name and a line about the two of them, brushed in over the opening crane shot
-const ARENA_KANJI = { avlu:'石', otlak:'風', kar:'雪', kopru:'嵐', bambu:'竹', gul:'薔薇' };
+const ARENA_KANJI = { kopru:'嵐', gul:'薔薇', ay:'赤月' };
 const titleEl = $('#arenaTitle');
 let titleKey = '';
 function titleCard(){
@@ -6905,7 +6925,7 @@ function dojoStart(lesson){
   SIMF = [you, foe]; you.human = true; you.bot = false; foe.human = false; foe.bot = true;
   you.lookCfg = S.look; foe.lookCfg = null;
   setWeapon(you, S.pw); setWeapon(foe, dojoCfg().weapon || 'katana');
-  if (ARENA.key !== 'avlu') buildArena('avlu');
+  if (ARENA.key !== 'gul') buildArena('gul');
   $('#youW').textContent = you.w.name; $('#foeW').textContent = 'Sensei · ' + foe.w.name;
   you.wins = foe.wins = 0; you.stats = makeStats(); foe.stats = makeStats(); clearDecals();
   G.round = 1; startRound(); cineEnd();
@@ -7332,7 +7352,7 @@ resize();
 S.look = cleanLook(S.look); you.lookCfg = S.look;
 setWeapon(you, S.pw);
 setWeapon(foe, S.bw === 'random' ? 'katana' : S.bw);
-buildArena(S.arena !== 'random' ? S.arena : 'avlu');
+buildArena(S.arena !== 'random' ? S.arena : 'gul');
 resetFighter(you, 0, 2.6); resetFighter(foe, 0, -2.6);
 for (const f of [you, foe]) poseFighter(f, 16, 0);
 
