@@ -4097,7 +4097,6 @@ function hit(a, b, over){
   if (b.air){ b.air.end = Math.min(b.air.end, T + 160); }
   if (!hyper) enter(b, 'hitstun', atk.ranged ? 220 : atk.heavy ? 480 : 320);
   addPosture(b, (atk.heavy ? 16 : 10) * a.w.posture * (atk.postureMul || 1));
-  injure(b, mirror(atk.angle), atk.heavy || atk.riposte || atk.skill || broke || caughtLow);
 }
 const DEFLECT = 210;
 /* The guard. A tap opens the classic parry window; holding the button keeps the guard up (to GUARD_MAX) and it follows the
@@ -5408,19 +5407,10 @@ function throwArm(f, u){
   const q = easeOut(clamp((u - .38)/.3, 0, 1)); return _v.set(lerp(-.46, -.06, q), lerp(.62, .5, q), lerp(.22, -.62, q));
 }
 
-/* ================= wounds ================= */
-function injure(b, incoming, force){
-  if (b.state === 'dead' || (!force && srnd() > .3)) return;
-  const sn = Math.sin(incoming), inj = b.inj;
-  let label, info;
-  if (sn > .45){ if (inj.arm >= 3) return; inj.arm++; label = 'ARM WOUND'; info = `attacks ${inj.arm*10}% slower, damage ${inj.arm*6}% lower`; }
-  else if (sn < -.45){ if (inj.leg >= 3) return; inj.leg++; label = 'LEG WOUND'; info = `movement ${inj.leg*13}% slower, shorter dodges`; }
-  else { inj.bleed = Math.min(3, inj.bleed + 1); inj.bleedUntil = T + 6500; label = 'BLEEDING'; info = `${(1.3*inj.bleed).toFixed(1)} hp per second · 6.5 s`; }
-  if (fight()){
-    spawnDmg(new THREE.Vector3(b.pos.x, 2.25, b.pos.z), label, 'inj');
-    if (b.isPlayer) setTiming(`<b class="bad">${label}</b>${info}`);
-  }
-}
+/* ================= wounds =================
+   Removed: arm/leg wounds and bleeding made fighters slow down or die between blows for no visible reason. A blow does
+   its damage and that is all; f.inj stays at zero, so every multiplier that reads it is neutral. */
+function injure(){}
 
 /* ================= per-fighter step ================= */
 function stepFighter(f, dt){
