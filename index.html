@@ -2063,6 +2063,30 @@ function spriteFx(tex, color, pos, life, update, additive){
   fxList.push({ obj:sp, t:0, life, update }); update(sp, 0); return sp;
 }
 const groundRingGeo = new THREE.RingGeometry(.86, 1, 48);
+/* the heavy telegraph: an ensō, one brush circle drawn on the ground as the blow gathers. It closes the moment the blow
+   comes; while the stroke is still wet its head is red. Held on, a second, gold circle draws itself round it: when that
+   one closes the art is ready. */
+const ENSO_GEO = new THREE.RingGeometry(.78, 1.1, 120, 1);
+function ensoMat(color){
+  return new THREE.ShaderMaterial({ transparent:true, depthWrite:false, side:THREE.DoubleSide,
+    uniforms:{ uProg:{ value:0 }, uOp:{ value:1 }, uSeed:{ value:Math.random() }, uCol:{ value:new THREE.Color(color) }, uHead:{ value:new THREE.Color(RED) } },
+    vertexShader:'varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix*modelViewMatrix*vec4(position, 1.0); }',
+    fragmentShader:`uniform float uProg, uOp, uSeed; uniform vec3 uCol, uHead; varying vec2 vP;
+      float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233)))*43758.5453); }
+      float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0 - 2.0*f); return mix(mix(h(i), h(i + vec2(1.0, 0.0)), f.x), mix(h(i + vec2(0.0, 1.0)), h(i + vec2(1.0, 1.0)), f.x), f.y); }
+      void main(){
+        float t = fract(atan(vP.y, vP.x)/6.28318 + .5 + uSeed);
+        if (t > uProg) discard;
+        float r = length(vP);
+        float press = mix(.62, 1.0, smoothstep(0.0, .12, t))*mix(1.0, .42, smoothstep(.72, 1.0, t));
+        float c = .94 + (n(vec2(t*7.0, uSeed*13.0)) - .5)*.06, hw = .1*press, d = abs(r - c);
+        if (d > hw) discard;
+        float dry = n(vec2(t*70.0, r*40.0)), amt = .12 + .62*smoothstep(.6, 1.0, t);
+        if (dry < amt*(.25 + d/hw)) discard;
+        float head = smoothstep(uProg - .07, uProg, t)*(1.0 - step(.998, uProg));
+        gl_FragColor = vec4(mix(uCol, uHead, head), uOp*(1.0 - smoothstep(hw*.72, hw, d)));
+      }` });
+}
 function groundShock(x, z, color, size, life){
   const m = new THREE.Mesh(groundRingGeo, new THREE.MeshBasicMaterial({ color, transparent:true, depthWrite:false, side:THREE.DoubleSide }));
   m.rotation.x = -Math.PI/2; m.position.set(x, .03, z); scene.add(m);
@@ -2078,7 +2102,7 @@ function updateFx(dtMs){
 }
 const _tipTmp = new THREE.Vector3(), _wq1 = new THREE.Quaternion(), _wq2 = new THREE.Quaternion(), _wp1 = new THREE.Vector3();
 function glintFx(f, heavy, life){
-  const col = heavy ? RED : INK;
+  const col = INK;
   spriteFx(TEX_STAR, col, f.v.tip.getWorldPosition(_tipTmp), life, (o,u) => {
     f.v.tip.getWorldPosition(o.position);
     const pop = heavy ? (.55 + .35*Math.sin(u*40)) * Math.min(1, u*6) : Math.sin(Math.min(1, u*1.1)*Math.PI);
@@ -2872,7 +2896,7 @@ function buildView(isPlayer){
   const tip = new THREE.Object3D(), base = new THREE.Object3D(); weapon.add(tip); weapon.add(base);
   const bladeMat = toon(0xE4E0D6, { emissive:0x000000 });
   const gripMat = mat(isPlayer ? 0x2A2723 : 0x3A1512), guardMat = mat(0x3A3631);
-  const heavyRing = new THREE.Mesh(groundRingGeo, new THREE.MeshBasicMaterial({ color:RED, transparent:true, opacity:0, depthWrite:false, side:THREE.DoubleSide }));
+  const heavyRing = new THREE.Mesh(ENSO_GEO, ensoMat(INK)); heavyRing.userData.noEdge = true;
   heavyRing.rotation.x = -Math.PI/2; heavyRing.position.y = .025; heavyRing.visible = false; scene.add(heavyRing);
   const outfit = new THREE.Group(); body.add(outfit);
   return { root, body, hips, knees, feet, armL, armR, foreL, foreR, elbowL, elbowR, handL, handR, rig, rigBase:rig.position.clone(), swing, weapon, gripA, gripB, tip, base, bladeMat, gripMat, guardMat, wmesh:null,
@@ -3656,7 +3680,7 @@ function makeTrail(color){
   geo.setAttribute('tuv', new THREE.BufferAttribute(uv,2));
   const mesh = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms:{ uMap:{ value:TEX_BRUSH } }, vertexShader:TrailShader.vertexShader, fragmentShader:TrailShader.fragmentShader, transparent:true, depthWrite:false, side:THREE.DoubleSide }));
   mesh.frustumCulled = false; scene.add(mesh);
-  return { mesh, geo, pos, col, uv, N, pts:[], color:new THREE.Color(color), heat:new THREE.Color(RED), steel:new THREE.Color(0x6E6A62), gold:new THREE.Color(GOLD) };
+  return { mesh, geo, pos, col, uv, N, pts:[], color:new THREE.Color(color), heat:new THREE.Color(0x33140F), steel:new THREE.Color(0x6E6A62), gold:new THREE.Color(GOLD) };
 }
 function makeStats(){ return { atk:0, hits:0, riposteHits:0, parryTry:0, parryOk:0, perfect:0, swept:0, bestChain:0, bindWon:0, bindLost:0, perfectDodges:0, combos:0, chambers:0, holds:0, early:0, late:0, angleFail:0, heavyFail:0, whiff:0, feints:0, baits:0, dodges:0, dmgOut:0, dmgIn:0, beenParried:0, timings:[] }; }
 function makeFighter(isPlayer){
@@ -5952,6 +5976,70 @@ function cutCurve(u, c, pw){
   const y = (u - CONTACT)/(1 - CONTACT), k = pw*c*(1 - CONTACT)/(CONTACT*(1 - c));   // matches the slope at contact
   return c + (1 - c)*(1 - Math.pow(1 - y, clamp(k, 1.2, 4.5)));
 }
+/* ---- the heavy blow: every weapon has its own. All of it is the look of the blow; the timing, reach, damage and the side
+   it comes from (the angle the defender reads) are the same as before.
+   katana     · waki-gamae: the blade sinks low behind the hip, the body coils and goes still, the steel catches the light
+                once, then one stroke and a long stillness after it (zanshin). A thin ink line hangs where it cut.
+   longsword  · Ochs: the point is levelled at the opponent's face first, then the sword whips back to load the step-in cut.
+   zweihander · the windmill: the great blade wheels round once behind the body to build its weight; the cut lands with a stamp.
+   twin blades· both blades gather on one side and fall together, the second a beat behind the first.
+   rapier     · the moulinet: the point draws two quick circles in the air, then it is drawn back for the cut.
+   spear      · the shaft wheels upright in front of the body, then levels into the thrust. ---- */
+function heavyStyle(f, a, u, GP){
+  const st = f.state, A = animOf(f), side = Math.cos(a.angle), k = f.wkey;
+  const W = st === 'windup', Hd = st === 'hold', Ac = st === 'active', Rc = st === 'recovery';
+  const o = { alpha:a.angle };
+  if (k === 'katana'){
+    const BK = -118;
+    if (W || Hd){ const q = Hd ? 1 : loadCurve(u); o.phi = lerp(GP, BK, q); o.lean = .14*q; o.drop = .17*q + (Hd ? .008*Math.sin(f.t*.004) : 0); o.twist = -.62*side*q; o.still = true; return o; }
+    if (Ac){ const b1 = 214, c = (90 - BK)/(b1 - BK), q = cutCurve(u, c, 2.6), bq = smooth(Math.min(1, u/CONTACT));
+      o.phi = lerp(BK, b1, q); o.lean = lerp(.14, -.42, bq); o.drop = lerp(.17, .22, bq); o.twist = lerp(-.62, .55, smooth(Math.min(1, u/(CONTACT + .2))))*side; o.snap = true; return o; }
+    if (Rc){ const r2 = .45, q = smooth(clamp((u - r2)/(1 - r2), 0, 1)), qa = smooth(clamp((u - r2)/((1 - r2)*.7), 0, 1));
+      o.alpha = lerpAng(a.angle, f.guardAngle, qa); o.phi = lerp(218, GP, q); o.lean = lerp(-.42, 0, q); o.drop = lerp(.22, 0, q); o.twist = .55*side*(1 - q); return o; }
+  }
+  if (k === 'longsword' && (W || Hd)){
+    // first the point goes out at the opponent's face (Ochs), then the sword whips back over to load the great cut
+    const q = Hd ? 1 : u, up = smooth(Math.min(1, q/.36)), ld = smooth(clamp((q - .44)/.5, 0, 1));
+    o.phi = lerp(lerp(GP, 86, up), A.backH, ld); o.lean = lerp(-.1*up, .22, ld); o.drop = .03 + .07*ld; o.twist = lerp(.12*up, -.44, ld)*side; o.thrust = .25*up*(1 - ld); return o;
+  }
+  if (k === 'zwei'){
+    if (W){ const q = loadCurve(u), L = smooth(Math.min(1, u/.74));
+      o.phi = lerp(GP, A.backH, q) - 360*L; o.snap = f.t > 60; o.lean = .1 + .14*q + .06*Math.sin(L*TAU); o.drop = .05 + .07*q; o.twist = (-.22*Math.sin(L*TAU) - .5*q)*side; o.loop = L; return o; }
+    if (Hd){ o.phi = A.backH + Math.sin(f.t*.11)*1.6; o.lean = .24; o.drop = .12; o.twist = -.5*side; return o; }
+  }
+  if (k === 'rapier' && W){
+    const L = smooth(Math.min(1, u/.7)), ld = smooth(clamp((u - .62)/.38, 0, 1)), up = smooth(Math.min(1, u/.15));
+    o.alpha = lerpAng(f.guardAngle, a.angle, up) + TAU*2*L; o.phi = lerp(lerp(GP, 36, up), A.backH, ld); o.snap = f.t > 60; o.trail = u > .06 && u < .72;
+    o.lean = .05 + .13*ld; o.drop = .03 + .05*ld; o.twist = -.3*side*ld; o.loop = L*2; return o;
+  }
+  if (k === 'spear' && W){
+    const L = smooth(Math.min(1, u/.7)), ld = smooth(clamp((u - .6)/.4, 0, 1)), up = smooth(Math.min(1, u/.16));
+    o.alpha = lerpAng(f.guardAngle, a.angle, up) - TAU*2*L; o.phi = lerp(lerp(78, 6, up), 68, ld); o.snap = f.t > 60; o.trail = u > .08 && u < .7;
+    o.thrust = -.62*ld; o.lean = .2*ld; o.drop = .08*ld; o.twist = 0; o.noCarry = u < .8; o.loop = L*2; return o;
+  }
+  return null;
+}
+// one-shot touches of a heavy blow, keyed to the state they belong to
+function heavyFx(f, a, u){
+  const v = f.v, key = f.sid; if (v.hfxSid !== key){ v.hfxSid = key; v.hfx = {}; }
+  const once = n => { if (v.hfx[n]) return false; v.hfx[n] = true; return true; };
+  const k = f.wkey, st = f.state;
+  if (k === 'katana' && st === 'windup' && u > .8 && once('glint')){
+    // the steel catches the light once and the gleam runs up the edge
+    v.base.getWorldPosition(_tipTmp);
+    spriteFx(TEX_STAR, 0xFFFFFF, _tipTmp, 260, (o, q) => { v.base.getWorldPosition(_v); v.tip.getWorldPosition(o.position); o.position.lerp(_v, 1 - easeOut(q)); const s = .55*Math.sin(Math.PI*q); o.scale.set(s, s, 1); o.material.rotation = q*1.4; }, true);
+    Sfx.glint(false, panOf(f));
+  }
+  if (k === 'katana' && st === 'active' && u >= CONTACT && once('issen')){
+    // issen: one thin ink line hangs in the air across the cut
+    const w = dirTo(f, f.opp); _v.set(f.pos.x + w.x*1.25, 1.2, f.pos.z + w.z*1.25);
+    const ang = a.angle + Math.PI/2;
+    spriteFx(TEX_SLASH, INK, _v, 460, (o, q) => { const sx = 3.4*(.35 + .65*easeOut(Math.min(1, q*5))); o.scale.set(sx, sx*.06*(1 - .7*q), 1); o.material.rotation = ang; o.material.opacity = q < .3 ? .95 : .95*Math.pow(1 - (q - .3)/.7, 1.6); });
+  }
+  if (k === 'longsword' && st === 'active' && once('step')){ const w = dirTo(f, f.opp); dustFx(f.pos.x + w.x*.5, f.pos.z + w.z*.5, 4, .25); }
+  if (k === 'zwei' && st === 'active' && u >= CONTACT && once('stamp')){ groundShock(f.pos.x, f.pos.z, INK, 2.4, 420); dustFx(f.pos.x, f.pos.z, 7, .45); Sfx.thud(.55, panOf(f)); }
+  if (k === 'spear' && st === 'active' && once('step')){ const w = dirTo(f, f.opp); dustFx(f.pos.x + w.x*.4, f.pos.z + w.z*.4, 3, .2); }
+}
 function poseFighter(f, dt, now){
   const v = f.v, P = f.pose, a = f.atk;
   const k = 1 - Math.exp(-dt*.022), kf = 1 - Math.exp(-dt*.06);
@@ -5971,7 +6059,7 @@ function poseFighter(f, dt, now){
       break;
     }
     case 'crouch': drop = .46; lean = -.2; phi = 40*DEG; fast = u < 1; break;
-    case 'hold': { const A = animOf(f); alpha = a.angle; phi = ((a.heavy ? A.backH : A.backL - 4) + Math.sin(f.t*.05)*3 + (a.heavy ? Math.sin(f.t*.11)*1.2 : 0))*DEG; lean = (a.heavy ? .2 : .1)*A.body; drop = (a.heavy ? .08 : .03)*A.body; } glow = a.heavy ? RED : 0xFFFFFF; glowAmt = a.heavy ? .55 + .45*Math.sin(f.t*.03) : .35; break;
+    case 'hold': { const A = animOf(f); alpha = a.angle; phi = ((a.heavy ? A.backH : A.backL - 4) + Math.sin(f.t*.05)*3 + (a.heavy ? Math.sin(f.t*.11)*1.2 : 0))*DEG; lean = (a.heavy ? .2 : .1)*A.body; drop = (a.heavy ? .08 : .03)*A.body; } glow = 0xFFFFFF; glowAmt = a.heavy ? .2 + .08*Math.sin(f.t*.02) : .35; break;
     // the blade swings out wide as the turn gathers speed and trails flat behind it; the knees sink through the middle
     case 'spin': { const w = Math.sin(Math.PI*u); alpha = 95*DEG; phi = lerp(38, 8, smooth(Math.min(1, u*2.2)))*DEG; lean = .05 - .1*smooth(Math.min(1, u*3)); drop = .05*(1 - smooth(Math.min(1, u*4))) - .035*w; break; }
     case 'spinRecover': phi = lerp(18, 40, smooth(u))*DEG; lean = .06*(1 - u); drop = .05*(1 - u); break;
@@ -5985,12 +6073,12 @@ function poseFighter(f, dt, now){
       // the tremble of a held heavy blow grows as it gathers; the weight settles back onto the rear foot
       alpha = a.angle; phi = (lerp(GP, a.heavy ? A.backH : A.backL, q) + (a.heavy ? Math.sin(f.t*.11)*1.6*u : 0))*DEG;
       lean = (a.heavy ? .24 : .1)*A.body*q; drop = (a.heavy ? .08 : .03)*A.body*q; }
-      glow = a.heavy ? RED : 0xFFFFFF; glowAmt = a.heavy ? (.55 + .45*Math.sin(f.t*.03))*u : .3*u; break;
+      glow = 0xFFFFFF; glowAmt = (a.heavy ? .22 : .3)*u; break;
     case 'active': { const A = animOf(f), b0 = a.heavy ? A.backH : A.backL, b1 = a.heavy ? A.endH : A.endL, c = (90 - b0)/(b1 - b0), q = cutCurve(u, c, A.pw);
       // the body throws itself in just ahead of the blade and is fully committed by the moment of the hit
       const bq = smooth(Math.min(1, u/CONTACT));
       alpha = a.angle; phi = lerp(b0, b1, q)*DEG; lean = lerp((a.heavy ? .24 : .1), (a.heavy ? -.36 : -.25), bq)*A.body; drop = lerp((a.heavy ? .08 : .03), (a.heavy ? .12 : .05), bq)*A.body; snap = true; }
-      glow = a.heavy ? RED : 0x000000; glowAmt = .8; break;
+      glow = 0x000000; glowAmt = 0; break;
     case 'recovery': {
       /* the weight carries the blade on past the end of the cut and the wrists catch it (a heavier sword further, for
          longer); a breath of stillness at the bottom; then the blade comes home round the side, the plane of the cut
@@ -6048,6 +6136,26 @@ function poseFighter(f, dt, now){
     else if (f.state === 'active'){ const q = cutCurve(u, .8, 1.6); alpha = a.angle; phi = lerp(50, 74, Math.min(1, q*1.25))*DEG; v.atkThrust = lerp(-.34, 1.05, q); lean = lerp(.12, -.26, smooth(Math.min(1, u/CONTACT))); drop = lerp(.05, .1, smooth(Math.min(1, u/CONTACT))); snap = true; }
     else if (f.state === 'recovery'){ const q = smooth(clamp((u - .12)/.88, 0, 1)); alpha = lerpAng(a.angle, f.guardAngle, q); phi = lerp(74, GP, q)*DEG; v.atkThrust = lerp(1.05, 0, q); lean = lerp(-.26, 0, q); drop = lerp(.1, 0, q); }
   }
+  let hTwist = null; v.hTrail = false; v.hNoCarry = false;
+  if (a && a.heavy && !a.art && !a.qte && !a.chain && (f.state === 'windup' || f.state === 'hold' || f.state === 'active' || f.state === 'recovery')){
+    const H = heavyStyle(f, a, u, GP);
+    if (H){
+      alpha = H.alpha; if (H.phi !== undefined) phi = H.phi*DEG; if (H.lean !== undefined) lean = H.lean; if (H.drop !== undefined) drop = H.drop;
+      if (H.twist !== undefined) hTwist = H.twist; if (H.snap) snap = true; if (H.thrust !== undefined) v.atkThrust = H.thrust;
+      v.hTrail = !!H.trail; v.hNoCarry = !!H.noCarry;
+      // a whoosh each half turn of a wheeling blade
+      if (H.loop !== undefined){ const hl = Math.floor(H.loop*2); if (v.hLoop !== undefined && hl !== v.hLoop && f.state === 'windup') Sfx.twirl(panOf(f), .7, f.w.mass); v.hLoop = hl; }
+    }
+    heavyFx(f, a, u);
+  }
+  // twin blades: the cuts of a chain alternate hands. Every second link is cut by the left blade: the right rig poses the
+  // cut mirrored, and its mirror image is what the left hand swings, so the blow still comes from the side it is aimed at.
+  const dualSt = f.state === 'windup' || f.state === 'hold' || f.state === 'active' || f.state === 'recovery';
+  v.leftCut = f.wkey === 'dual' && a && !a.heavy && !a.art && !a.qte && dualSt && ((a.combo || 1) % 2 === 0);
+  if (v.leftCut){
+    if (f.state === 'recovery'){ const r2 = .28, qa = smooth(clamp((u - r2)/((1 - r2)*.7), 0, 1)); alpha = lerpAng(wrap(Math.PI - a.angle), f.guardAngle, qa); }
+    else alpha = wrap(Math.PI - alpha);
+  }
   // flourish: integrate the spin, let it slow, then settle the blade back to the nearest full turn
   /* flourish: the blade spins round the right hand in the plane beside the body. Gravity pulls the tip down, so it
      speeds up on the way down and labours over the top; a weak flick swings like a pendulum and the wrist catches it.
@@ -6091,16 +6199,17 @@ function poseFighter(f, dt, now){
   if (f.state === 'idle' && T < (f.brakeUntil || 0)) drop = Math.max(drop, .2*(f.brakeUntil - T)/240);   // absorbing the stop
   // torso twist: coil toward the side the blow starts from, uncoil through the swing
   if (a && (f.state === 'windup' || f.state === 'hold' || f.state === 'active' || f.state === 'recovery')){
-    const A = animOf(f), side = Math.cos(a.angle)*(a.heavy ? 1.3 : 1)*A.tw*(A.lunge && !a.heavy ? .25 : 1);
+    const A = animOf(f), side = Math.cos(a.angle)*(a.heavy ? 1.3 : 1)*A.tw*(A.lunge && !a.heavy ? .25 : 1)*(v.leftCut ? -1 : 1);
     if (f.state === 'windup') twist = -.38*side*loadCurve(u);
     else if (f.state === 'hold') twist = -.42*side;
     else if (f.state === 'active') twist = lerp(-.38, .46, smooth(Math.min(1, u/(CONTACT + .25))))*side;
     else twist = .46*side*(1 - smooth(clamp((u - .1)/.9, 0, 1)));
   }
+  if (hTwist !== null) twist = hTwist;
   if (P.twist === undefined) P.twist = 0;
   P.twist = (f.state === 'active' || direct) ? twist : lerp(P.twist, twist, f.state === 'hitstun' ? k*.5 : f.state === 'throw' ? kf : k);
-  if (snap){ P.alpha = alpha; P.phi = phi; }
-  else { const kk = fast ? kf : k; P.alpha = lerpAng(P.alpha, alpha, kk); P.phi = lerp(P.phi, phi, kk); }
+  if (snap){ P.alpha = alpha; P.phi += wrap(phi - P.phi); }
+  else { const kk = fast ? kf : k; P.alpha = lerpAng(P.alpha, alpha, kk); P.phi += wrap(phi - P.phi)*kk; }
   P.lean = direct ? lean : lerp(P.lean, lean, f.state === 'active' ? kf : k); P.drop = direct ? drop : lerp(P.drop, drop, k);
   P.off = lerp(P.off, off, fast ? kf : k);
   if (f.state !== 'art'){ v.artThrust = 0; v.artSpin = 0; }
@@ -6108,7 +6217,7 @@ function poseFighter(f, dt, now){
   const flA = canAct(f) ? (f.twHold || 0) : 0, thF = 38*DEG + (f.twAng || 0), sw = Math.min(1, Math.abs(f.twVel || 0)/18)*flA;
   const fl2 = .22*flA;
   // a spear is carried low at the hip, the shaft running back past the body
-  v.spearK = lerp(v.spearK || 0, f.w && f.w.thrust && f.state !== 'parry' && f.state !== 'qte' && f.state !== 'bind' && f.state !== 'art' && f.state !== 'flip' && f.state !== 'roll' ? 1 : 0, 1 - Math.exp(-(dt || 0)*.02));
+  v.spearK = lerp(v.spearK || 0, f.w && f.w.thrust && f.state !== 'parry' && f.state !== 'qte' && f.state !== 'bind' && f.state !== 'art' && f.state !== 'flip' && f.state !== 'roll' && !v.hNoCarry ? 1 : 0, 1 - Math.exp(-(dt || 0)*(v.hNoCarry ? .03 : .02)));
   const spK = v.spearK;
   v.rig.position.set(v.rigBase.x + Math.cos(og)*.26*P.off - .2*shv + fl2 + .06*spK, v.rigBase.y + Math.sin(og)*.22*P.off - .28*shv - Math.cos(thF)*.05*sw - .24*spK, v.rigBase.z - .06*P.off + .16*shv - .32*thrust + Math.sin(thF)*.05*sw + .1*spK);
   const twA = canAct(f) ? (f.twAng || 0) : 0, gB = v.gripB.position.x;
@@ -6119,21 +6228,27 @@ function poseFighter(f, dt, now){
   if (f.flash > 0){ f.flash = Math.max(0, f.flash - dt*.007); }
   const fl = f.flash*f.flash*.55;
   for (const m of v.mats) m.emissive.setRGB(fl, fl*.92, fl*.85);
-  // heavy telegraph: ground ring and embers off the blade
+  // heavy telegraph: the ensō on the ground (see ensoMat)
   const hr = v.heavyRing;
-  // while a blow is held the ring is a charge meter: it grows until it meets the faint outer ring, then turns gold (the art).
-  // Grey means there is not enough breath left for the art: letting go gives an ordinary heavy blow.
   const holding = f.state === 'hold' && a && ARTS[f.wkey];
-  if (!v.artRing){ v.artRing = new THREE.Mesh(groundRingGeo, new THREE.MeshBasicMaterial({ color:GOLD, transparent:true, opacity:0, depthWrite:false, side:THREE.DoubleSide })); v.artRing.rotation.x = -Math.PI/2; v.artRing.position.y = .024; scene.add(v.artRing); }
+  if (!v.artRing){ v.artRing = new THREE.Mesh(ENSO_GEO, ensoMat(GOLD)); v.artRing.rotation.x = -Math.PI/2; v.artRing.position.y = .024; v.artRing.userData.noEdge = true; scene.add(v.artRing); }
+  const heavyUp = ((f.state === 'windup' || f.state === 'hold') && a && a.heavy) || holding;
   v.artRing.visible = !!holding && !a.artReady;
-  if (v.artRing.visible){ v.artRing.position.x = f.pos.x; v.artRing.position.z = f.pos.z; v.artRing.scale.setScalar(1.15); v.artRing.material.opacity = .35; v.artRing.material.color.setHex(f.breath < SP_COST ? WASH : GOLD); }
-  if (((f.state === 'windup' || f.state === 'hold') && a && a.heavy) || holding){
+  if (v.artRing.visible){
+    const U = v.artRing.material.uniforms;
+    v.artRing.position.x = f.pos.x; v.artRing.position.z = f.pos.z; v.artRing.scale.setScalar(1.28);
+    U.uProg.value = clamp(f.t/SP_CHARGE, 0, 1); U.uOp.value = .8; U.uCol.value.setHex(f.breath < SP_COST ? WASH : GOLD); U.uHead.value.setHex(f.breath < SP_COST ? WASH : GOLD);
+  }
+  if (heavyUp){
+    const U = hr.material.uniforms;
+    if (!hr.visible) U.uSeed.value = Math.random();
     hr.visible = true; hr.position.x = f.pos.x; hr.position.z = f.pos.z;
-    const q = f.state === 'hold' ? clamp(f.t/SP_CHARGE, 0, 1) : u;
-    hr.material.color.setHex(a.artReady ? GOLD : (holding && f.breath < SP_COST ? WASH : RED));
-    const pul = .5 + .5*Math.sin(f.t*(a.artReady ? .06 : .03)), s = a.artReady ? 1.15 + .08*pul : (f.state === 'hold' ? .45 + .7*q : .75 + .25*u);
-    hr.scale.set(s, s, s); hr.material.opacity = (a.heavy ? .35 + .5*q : .25)*(.6 + .4*pul);
-    if (a.heavy && dt > 0 && Math.random() < .5){ v.tip.getWorldPosition(_tipTmp); burst(_tipTmp, a.artReady ? GOLD : RED, 1, .8); }
+    // windup: the circle closes as the blow comes; held: it stays closed (a light blow held turns heavy at 350 ms)
+    const prog = f.state === 'windup' ? clamp(u*1.04, 0, 1) : a.heavy ? 1 : clamp(f.t/350, 0, 1);
+    const pul = .5 + .5*Math.sin(f.t*.06);
+    U.uProg.value = prog; U.uCol.value.setHex(a.artReady ? GOLD : INK); U.uHead.value.setHex(a.artReady ? GOLD : RED);
+    U.uOp.value = a.artReady ? .75 + .25*pul : .82;
+    hr.scale.setScalar(a.artReady ? 1.15 + .06*pul : 1);
   } else hr.visible = false;
   // blood on the blade
   v.bladeMat.color.copy(BLADE_STEEL).lerp(BLADE_BLOOD, f.bladeBlood*.8);
@@ -6306,23 +6421,45 @@ function poseFighter(f, dt, now){
   v.gripB.getWorldPosition(_b); v.body.worldToLocal(_b);
   if (f.wkey === 'dual' && v.weapon2){
     // twin blades: the left hand and its sword mirror the right across the body. While one blade cuts, the other holds a
-    // guard on the left, so the blow reads as one blade from one side instead of two from both.
+    // guard, so the blow reads as one blade from one side. Every second link of a chain is the left blade's; a heavy blow
+    // gathers both on one side, the left a beat behind.
     const cutting = a && !a.art && (f.state === 'windup' || f.state === 'hold' || f.state === 'active' || f.state === 'recovery');
-    v.offK = lerp(v.offK || 0, cutting ? 1 : 0, 1 - Math.exp(-(dt || 0)*.025));
+    const echo = cutting && a.heavy;
+    const ke = 1 - Math.exp(-(dt || 0)*.03);
+    v.offK = lerp(v.offK || 0, cutting && !echo ? 1 : 0, 1 - Math.exp(-(dt || 0)*.025));
+    v.leftK = lerp(v.leftK || 0, v.leftCut ? 1 : 0, ke);
+    v.echoK = lerp(v.echoK || 0, echo ? 1 : 0, ke);
     _a.set(-_b.x, _b.y, _b.z);
     v.weapon.getWorldQuaternion(_wq1); v.body.getWorldQuaternion(_wq2); _wq2.invert().multiply(_wq1);
     v.weapon2.quaternion.set(_wq2.x, -_wq2.y, -_wq2.z, _wq2.w);
     v.weapon.getWorldPosition(_wp1); v.body.worldToLocal(_wp1); v.weapon2.position.set(-_wp1.x, _wp1.y, _wp1.z);
+    const rz = v.rig.rotation.z, sy = v.swing.rotation.y;
+    if (v.echoK > .01){
+      // the left blade takes the right one's stroke a little behind it, set beside it
+      v.swing.rotation.y = sy - 26*DEG; v.rig.updateMatrixWorld(true);
+      v.weapon.getWorldQuaternion(_wq1); v.body.getWorldQuaternion(_wq2); _wq2.invert().multiply(_wq1);
+      v.weapon.getWorldPosition(_wp1); v.body.worldToLocal(_wp1); _wp1.x -= .12; _wp1.z += .04;
+      v.gripB.getWorldPosition(_wp2); v.body.worldToLocal(_wp2); _wp2.x -= .12; _wp2.z += .04;
+      v.swing.rotation.y = sy; v.rig.updateMatrixWorld(true);
+      v.weapon2.quaternion.slerp(_wq2, v.echoK); v.weapon2.position.lerp(_wp1, v.echoK); _a.lerp(_wp2, v.echoK);
+    }
     if (v.offK > .01){
-      // the same mirror, taken from a fixed guard pose of the right blade
-      const rz = v.rig.rotation.z, sy = v.swing.rotation.y;
+      // the guard: a fixed pose of the right blade, and its mirror for the left
       v.rig.rotation.z = 75*DEG; v.swing.rotation.y = 32*DEG; v.rig.updateMatrixWorld(true);
       v.weapon.getWorldQuaternion(_wq1); v.body.getWorldQuaternion(_wq2); _wq2.invert().multiply(_wq1); _wq3.set(_wq2.x, -_wq2.y, -_wq2.z, _wq2.w);
       v.weapon.getWorldPosition(_wp1); v.body.worldToLocal(_wp1); _wp1.x = -_wp1.x;
       v.gripB.getWorldPosition(_wp2); v.body.worldToLocal(_wp2); _wp2.x = -_wp2.x;
       v.rig.rotation.z = rz; v.swing.rotation.y = sy; v.rig.updateMatrixWorld(true);
-      v.weapon2.quaternion.slerp(_wq3, v.offK); v.weapon2.position.lerp(_wp1, v.offK); _a.lerp(_wp2, v.offK);
+      const wl = v.offK*(1 - v.leftK);
+      if (wl > .001){ v.weapon2.quaternion.slerp(_wq3, wl); v.weapon2.position.lerp(_wp1, wl); _a.lerp(_wp2, wl); }
     }
+    // the left blade is cutting: the right hand goes to the guard
+    const wr = v.offK*v.leftK;
+    if (wr > .001){
+      v.rig.rotation.z = lerpAng(rz, 75*DEG, wr); v.swing.rotation.y = sy + wrap(32*DEG - sy)*wr; v.rig.updateMatrixWorld(true);
+      v.gripB.getWorldPosition(_b); v.body.worldToLocal(_b);
+      v.rigHold = [v.rig.rotation.z, v.swing.rotation.y];
+    } else v.rigHold = null;
   } else if (f.w && f.w.chain){ chainHand(f, _a, now); if (f.state === 'throw') _a.copy(throwArm(f, f.t/Math.max(1, f.dur))); }
   else {
     v.gripA.getWorldPosition(_a); v.body.worldToLocal(_a); if (flA > .01) _a.lerp(LEFT_REST, flA);
@@ -6357,8 +6494,8 @@ function makeChain(){
   const group = new THREE.Group(); scene.add(group);
   const links = new THREE.InstancedMesh(new THREE.TorusGeometry(.03, .009, 4, 8), toon(0x2E2A26), CHAIN_N); links.castShadow = true; links.frustumCulled = false; group.add(links);
   const weight = new THREE.Mesh(new THREE.CylinderGeometry(.05, .058, .13, 8), toon(0x2A2622)); weight.castShadow = true; group.add(weight); outline(weight, .008);
-  // the whirl: a faint ring where the weight circles, red, so the side of the coming throw reads at a glance
-  const whirl = new THREE.Mesh(new THREE.RingGeometry(.4, .5, 40), new THREE.MeshBasicMaterial({ color:RED, transparent:true, opacity:0, depthWrite:false, side:THREE.DoubleSide }));
+  // the whirl: a faint ink ring where the weight circles, so the side of the coming throw reads at a glance
+  const whirl = new THREE.Mesh(new THREE.RingGeometry(.4, .5, 40), new THREE.MeshBasicMaterial({ color:0x2A2622, transparent:true, opacity:0, depthWrite:false, side:THREE.DoubleSide }));
   whirl.userData.noEdge = true; group.add(whirl);
   return { group, links, weight, whirl, last:new THREE.Vector3(), has:false };
 }
@@ -6446,21 +6583,26 @@ function updateTrail(f){
   const sweeping = f.state === 'parry' && f.prevAlpha !== null && angDiff(f.pose.alpha, f.prevAlpha) > 1.2*DEG;
   const twirl = (T - (f.twirlT || -1e9) < 320 && (f.state === 'feintRecover' || f.state === 'idle')) || (Math.abs(f.twVel || 0) > 7 && canAct(f));
   const spinning = (f.state === 'spin' && f.t > SPIN_DUR*.2 && f.t < SPIN_DUR*.85) || (f.state === 'windup' && f.atk && f.atk.spin && f.spinFrom < .8 && f.t < f.dur*.7) || (f.state === 'art' && artTrail(f));
-  const qx = G.qte && G.qte.ex, emit = spinning || (f.state === 'qte' && qx && qx.att === f && G.qte.t - qx.t0 < QTE_EX*.62) || f.state === 'active' || (f.state === 'recovery' && f.t < 90) || sweeping || twirl || (G.phase === 'intro' && f.drawing);
-  const sample = () => { const bp = new THREE.Vector3(), tp = new THREE.Vector3(); v.base.getWorldPosition(bp); v.tip.getWorldPosition(tp); tr.pts.unshift({ b:bp, t:tp }); };
+  const qx = G.qte && G.qte.ex, emit = spinning || v.hTrail || (f.state === 'qte' && qx && qx.att === f && G.qte.t - qx.t0 < QTE_EX*.62) || f.state === 'active' || (f.state === 'recovery' && f.t < 90) || sweeping || twirl || (G.phase === 'intro' && f.drawing);
+  // the left twin blade's cut is the mirror of the right rig's
+  const mir = f.wkey === 'dual' && (v.leftK || 0) > .5;
+  const sample = () => { const bp = new THREE.Vector3(), tp = new THREE.Vector3(); v.base.getWorldPosition(bp); v.tip.getWorldPosition(tp);
+    if (mir){ v.body.worldToLocal(bp); bp.x = -bp.x; v.body.localToWorld(bp); v.body.worldToLocal(tp); tp.x = -tp.x; v.body.localToWorld(tp); }
+    tr.pts.unshift({ b:bp, t:tp }); };
   if (emit){
     // fill in the arc between last frame and this one so a 100 ms swing still draws a smooth crescent
     if (f.prevAlpha !== null && !twirl && !spinning){
-      const A = f.pose.alpha, Ph = f.pose.phi, SUB = 4;
+      const A = f.pose.alpha, Ph = f.pose.phi, SUB = 4, dPh = wrap(Ph - f.prevPhi);
       for (let j=1;j<SUB;j++){
-        v.rig.rotation.z = lerpAng(f.prevAlpha, A, j/SUB); v.swing.rotation.y = lerp(f.prevPhi, Ph, j/SUB);
+        v.rig.rotation.z = lerpAng(f.prevAlpha, A, j/SUB); v.swing.rotation.y = f.prevPhi + dPh*j/SUB;
         v.rig.updateMatrixWorld(true); sample();
       }
       v.rig.rotation.z = A; v.swing.rotation.y = Ph; v.rig.updateMatrixWorld(true);
-    }
+    } else if (v.rigHold){ v.rig.rotation.z = f.pose.alpha; v.swing.rotation.y = f.pose.phi; v.rig.updateMatrixWorld(true); }
     sample();
+    if (v.rigHold){ v.rig.rotation.z = v.rigHold[0]; v.swing.rotation.y = v.rigHold[1]; v.rig.updateMatrixWorld(true); }
     // a flourish leaves only a short sweep behind the blade, not a full disc
-    const cap = twirl ? 6 : spinning ? (f.state === 'art' ? 12 : 8) : tr.N;
+    const cap = twirl ? 6 : spinning ? (f.state === 'art' ? 12 : 8) : v.hTrail ? 10 : tr.N;
     while (tr.pts.length > cap) tr.pts.pop();
     if (f.state === 'active' || f.state === 'qte') tr.cut = true;
   } else if (tr.pts.length){
@@ -6470,7 +6612,7 @@ function updateTrail(f){
   }
   const n = tr.pts.length;
   if (n < 2){ tr.geo.setDrawRange(0, 0); return; }
-  const col = (f.state === 'parry' || f.state === 'parryRecover' || twirl || f.state === 'spin') ? tr.steel : (f.atk && f.atk.riposte ? tr.gold : (f.atk && f.atk.heavy ? tr.heat : tr.color));
+  const col = (f.state === 'parry' || f.state === 'parryRecover' || twirl || f.state === 'spin' || v.hTrail) ? tr.steel : (f.atk && f.atk.riposte ? tr.gold : (f.atk && f.atk.heavy ? tr.heat : tr.color));
   for (let i=0;i<n;i++){
     const p = tr.pts[i], u = i/(n - 1);
     // brush pressure: the root of the stroke creeps toward the tip at the tail (it thins to a point) and a touch at the head
