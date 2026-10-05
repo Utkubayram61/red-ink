@@ -3770,7 +3770,7 @@ function resetFighter(f, x, z){
   f.pos = { x, z }; f.vel = { x:0, z:0 }; f.moveIn = { x:0, z:0 };
   const oz = f === SIMF[0] ? -2.6 : 2.6;
   f.yaw = Math.atan2(x, -(oz - z));
-  f.fallForward = false; f.thrust = 0; f.biteT = -1e9; f.air = null; f.spinEnd = -1e9; f.breath = 100; f.breathT = 0;
+  f.fallForward = false; f.deathK = undefined; f.hitKind = null; f.thrust = 0; f.biteT = -1e9; f.air = null; f.spinEnd = -1e9; f.breath = 100; f.breathT = 0;
   f.pose.lean = 0; f.pose.drop = 0; f.pose.off = 0; f.pose.tx = 0; f.pose.tz = 0; f.pvx = f.pvz = 0; f.brakeUntil = 0; f.trail.pts.length = 0; f.flash = 0; f.prevAlpha = null; resetCloth(f);
   f.inj = { arm:0, leg:0, bleed:0, bleedUntil:0 }; f.bladeBlood = 0; f.blindUntil = 0; f.counterParry = false; f.art = null; f.artY = 0; f.artVy = 0; f.sheathClick = 0; f.shuri = SHURI_N; f.throwReady = 0; f.throwDone = true;
   f.guardAngle = f.isPlayer ? .35 : 2.8; f.buf = null; f.qIdx = 0; f.qLock = 0; f.bindPush = 0;
@@ -4122,10 +4122,15 @@ function hit(a, b, over){
   if (atk.chain && fight()) callout(b.isPlayer ? 'Chained' : 'Pulled in', b.isPlayer ? 'bad' : 'good', b.isPlayer ? 'the sickle is coming' : 'cut now');
   b.vel.x += kb.x*kbs; b.vel.z += kb.z*kbs;
   b.flash = 1; if (!atk.ranged) a.biteT = T;
-  // the body is thrown away from the cut: turned, bent and tipped back
+  // the body is thrown away from the cut: turned, bent and tipped back. What it does next depends on the blow (poseFighter):
+  // a point folds it over, a chain yanks it forward, a heavy cut buckles the knees, a light one spins the shoulder
   const inc = mirror(atk.angle), heavyK = atk.heavy ? 1.45 : 1;
-  b.pose.twist = clamp((b.pose.twist || 0) + Math.cos(inc)*.6*heavyK, -1, 1);
-  b.pose.lean = Math.max(b.pose.lean, .38*heavyK);
+  const thrustHit = !atk.ranged && !atk.chain && ((a.w && a.w.thrust) || (a.wkey === 'rapier' && !atk.heavy)) && !atk.art;
+  b.hitKind = atk.ranged ? 'graze' : atk.chain ? 'pull' : thrustHit ? 'thrust' : atk.heavy ? 'heavy' : 'light';
+  b.hitSide = Math.cos(inc); b.hitAng = atk.angle;
+  b.pose.twist = clamp((b.pose.twist || 0) + Math.cos(inc)*(thrustHit ? .2 : .6)*heavyK, -1, 1);
+  b.pose.lean = thrustHit ? Math.min(b.pose.lean, -.3) : Math.max(b.pose.lean, .38*heavyK);
+  if (b.hitKind === 'heavy' || b.hitKind === 'thrust') b.pose.drop = Math.max(b.pose.drop, .22);
   const yc = Math.cos(-b.yaw), ys = Math.sin(-b.yaw);
   b.pose.tx = (kb.x*yc + kb.z*ys)*.35*heavyK; b.pose.tz = (-kb.x*ys + kb.z*yc)*.35*heavyK;
   // the camera is shoved along the blow
@@ -4412,6 +4417,11 @@ function clearQTE(){
 
 function kill(b, a){
   clearQTE();
+  // how the body goes down: run through, it kneels and pitches forward; a heavy cut throws it onto its back; a cut from the
+  // side topples it sideways; anything else drops it forward
+  const k = b.hitKind, sd = b.hitSide || 0;
+  b.deathK = k === 'thrust' ? 2 : k === 'heavy' ? 0 : (k === 'light' && Math.abs(sd) > .45) ? 3 : 1;
+  b.deathSide = sd >= 0 ? 1 : -1;
   b.hp = 0; enter(b, 'dead');
   hitstop = 260; Sfx.fall(); Sfx.voice(b, 'death'); fovKick = 5;
   if (S.blood) bloodDecal(b.pos.x, b.pos.z, 1.5);
@@ -5004,7 +5014,7 @@ function endFinisher(){
   G.after = F.type === 'pass' ? { dir:F.dir, bpos:F.bpos, side:F.side, t:0 } : null;
   G.fin = null; G.phase = 'fight';
   a.thrust = 0; a.sheath = 0; a.artY = 0; a.vel.x = a.vel.z = 0;
-  b.hp = 0; b.fallForward = true; enter(b, 'dead'); b.t = 700;
+  b.hp = 0; b.fallForward = true; b.deathK = 1; enter(b, 'dead'); b.t = 700;
   enter(a, 'idle');
   roundOver(a, b);
 }
@@ -6090,6 +6100,18 @@ function heavyFx(f, a, u){
   if (k === 'zwei' && st === 'active' && u >= CONTACT && once('stamp')){ groundShock(f.pos.x, f.pos.z, INK, 2.4, 420); dustFx(f.pos.x, f.pos.z, 7, .45); Sfx.thud(.55, panOf(f)); }
   if (k === 'spear' && st === 'active' && once('step')){ const w = dirTo(f, f.opp); dustFx(f.pos.x + w.x*.4, f.pos.z + w.z*.4, 3, .2); }
 }
+/* the gait: stride length, cadence and bob per weapon. The zweihander plants wide heavy steps, the twin blades dance on
+   the balls of the feet, the rapier takes quick short fencing steps, the spear and the rest walk a kendoka's glide */
+const GAIT = {
+  katana:   { amp:1,    cad:1,    bob:1,   sway:1,   low:0 },
+  longsword:{ amp:1.05, cad:.95,  bob:1.1, sway:1.05, low:.01 },
+  zwei:     { amp:1.3,  cad:.78,  bob:1.6, sway:1.4, low:.035 },
+  dual:     { amp:.82,  cad:1.3,  bob:.6,  sway:.7,  low:0 },
+  rapier:   { amp:.78,  cad:1.25, bob:.7,  sway:.6,  low:0 },
+  spear:    { amp:1.05, cad:.95,  bob:1,   sway:1,   low:.015 },
+  kusari:   { amp:.9,   cad:1.15, bob:.75, sway:.8,  low:0 },
+};
+const gaitOf = f => GAIT[f.wkey] || GAIT.katana;
 function poseFighter(f, dt, now){
   const v = f.v, P = f.pose, a = f.atk;
   const k = 1 - Math.exp(-dt*.022), kf = 1 - Math.exp(-dt*.06);
@@ -6119,7 +6141,13 @@ function poseFighter(f, dt, now){
     // parry: blade moves out to the guard side and turns across the incoming line, so the attacker's blade meets it in an X
     case 'parry': alpha = f.parryAngle + Math.PI/2; phi = 16*DEG; off = 1; glow = 0xFFFFFF; glowAmt = .8; fast = true; lean = .05; break;
     case 'parryRecover': alpha = f.parryAngle + Math.PI/2; phi = -8*DEG; off = .55; lean = .08; drop = .05; break;
-    case 'windup': { const A = animOf(f), q = loadCurve(u);
+    case 'windup': if (a && a.riposte && !a.art){
+        // riposte: out of the parry cross the blade rolls over the opponent's and is already behind the shoulder; the body
+        // steps in under it. The whole load is one short arc, with a steel trail, instead of a draw back to guard.
+        const A = animOf(f), q = smooth(u), b0 = a.heavy ? A.backH : A.backL;
+        alpha = lerpAng(P.alpha, a.angle, Math.min(1, u*1.6)); phi = lerp(Math.min(P.phi/DEG, 30), b0, q)*DEG; lean = -.06 + .14*q; drop = .06*q; fast = true; v.ripK = 1; break;
+      }
+      { const A = animOf(f), q = loadCurve(u);
       // the tremble of a held heavy blow grows as it gathers; the weight settles back onto the rear foot
       alpha = a.angle; phi = (lerp(GP, a.heavy ? A.backH : A.backL, q) + (a.heavy ? Math.sin(f.t*.11)*1.6*u : 0))*DEG;
       lean = (a.heavy ? .24 : .1)*A.body*q; drop = (a.heavy ? .08 : .03)*A.body*q; }
@@ -6139,23 +6167,52 @@ function poseFighter(f, dt, now){
       alpha = lerpAng(a.angle, f.guardAngle, qa); phi = lerp(b1 + carry, GP, q)*DEG;
       lean = lerp((a.heavy ? -.36 : -.25)*A.body, 0, smooth(clamp(u*1.15, 0, 1))); drop = lerp((a.heavy ? .12 : .05)*A.body, 0, smooth(u)); break; }
     case 'feintRecover': alpha = a.angle; phi = 22*DEG; lean = .04; break;
-    case 'deflect': alpha = a ? a.angle : alpha; phi = (-30 + 60*smooth(u))*DEG; lean = .16*(1-u); drop = .04*(1-u); break;
+    case 'deflect': { const sd = a ? Math.cos(a.angle) : 1, fl = Math.sin(Math.PI*Math.min(1, u*1.3));
+      // knocked aside: the blade swings out wide and comes back on guard in one sweep
+      alpha = (a ? a.angle : alpha) + .7*fl*(sd >= 0 ? 1 : -1); phi = (-30 + 60*smooth(u))*DEG; lean = .16*(1-u); drop = .04*(1-u); break; }
     case 'bind': {
       // both press their blades together over the centre line; the one losing gets bent back
       const B = G.bind, adv = B ? (f === SIMF[0] ? B.v : -B.v) : 0, jit = Math.sin(now*.05 + (f.isPlayer ? 0 : 1.7))*.02;
       alpha = 62*DEG + jit; phi = (80 - adv*10)*DEG; lean = -.22 - adv*.12; drop = .14 - adv*.04; fast = true; glow = 0x000000; glowAmt = 0; break;
     }
-    case 'stagger': alpha = a ? a.angle : alpha; phi = (-58 + Math.sin(f.t*.045)*9)*DEG; lean = .34*(1 - u*.6); drop = .08; break;
-    case 'hitstun': phi = lerp(-10, 35, u)*DEG; alpha = f.guardAngle - .6*(1 - u); lean = .34*(1 - u); drop = .1*(1 - u) + .03; break;
+    case 'stagger': {
+      // parried: the blade is flung up and wide off the clash, the body arches back, the back foot gives; then it gathers
+      const sd = a ? Math.cos(a.angle) : 1, r = 1 - smooth(Math.min(1, u*1.4)), fl = Math.sin(Math.PI*Math.min(1, u*2.2));
+      alpha = (a ? a.angle : alpha) + .55*fl*(sd >= 0 ? 1 : -1); phi = (-74 + 10*smooth(u) + Math.sin(f.t*.04)*6*r)*DEG; lean = .4*r + .06; drop = .1 + .08*fl; fast = u < .3; break; }
+    case 'hitstun': {
+      const kind = f.hitKind || 'light', sd = f.hitSide || 0, r = 1 - u, e = 1 - smooth(u);
+      if (kind === 'thrust'){
+        // run through: the body folds over the point, the blade hand goes slack, then it straightens with a hand to the wound
+        phi = lerp(10, 40, u)*DEG; alpha = f.guardAngle - .9*r; lean = -.36*e - .04; drop = .2*e + .04; v.hurtK = Math.max(v.hurtK || 0, 1 - u*.6); fast = u < .3;
+      } else if (kind === 'pull'){
+        // yanked in by the chain: thrown forward off the feet, arms flung out
+        phi = 62*DEG; alpha = f.guardAngle + .9*r; lean = -.44*e; drop = .12*e + .02; fast = true;
+      } else if (kind === 'heavy'){
+        // a heavy cut: the knees buckle under it and the whole body is bent back and turned, then it climbs back up
+        const bk = Math.sin(Math.PI*Math.min(1, u*1.5));
+        phi = lerp(-30, 40, u)*DEG; alpha = f.guardAngle - 1.0*r*(sd >= 0 ? 1 : -1); lean = .5*e + .04; drop = .3*bk + .06*r + .03; fast = u < .25;
+      } else if (kind === 'graze'){
+        phi = lerp(5, 35, u)*DEG; alpha = f.guardAngle - .25*r; lean = .14*e; drop = .03*e + .02;
+      } else {
+        // a light cut spins the struck shoulder away and rocks the weight onto the back foot
+        phi = lerp(-10, 35, u)*DEG; alpha = f.guardAngle - .7*r*(sd >= 0 ? 1 : -1); lean = .32*e; drop = .1*e + .03; fast = u < .2;
+      }
+      break;
+    }
     case 'broken': alpha = -70*DEG; phi = 72*DEG; lean = -.38; drop = .24; break;
     case 'dead': {
-      // the knees go first, then the body falls with gravity, hits and settles with a small rebound
-      const t = f.t, fw = f.fallForward, Ln = fw ? -1.42 : 1.45, Dn = fw ? .8 : .62, l0 = fw ? -.24 : .2;
-      alpha = -80*DEG; phi = 60*DEG; direct = true;
-      if (t < 260){ const q = smooth(t/260); lean = l0*q; drop = .42*q; }
-      else if (t < 620){ const e = Math.pow((t - 260)/360, 2); lean = lerp(l0, Ln, e); drop = lerp(.42, Dn, e); }
-      else { const q = clamp((t - 620)/280, 0, 1), bo = Math.sin(q*Math.PI)*(1 - q)*.14; lean = Ln - Math.sign(Ln)*bo; drop = Dn - bo*.35; }
-      if (t >= 620 && f.deadSid !== f.sid){ f.deadSid = f.sid; dustFx(f.pos.x + Math.sin(f.yaw)*(fw ? -.7 : .7), f.pos.z + Math.cos(f.yaw)*(fw ? -.7 : .7), 6, .35); Sfx.thud(.9, panOf(f)); }
+      /* the fall. 0: thrown onto the back. 1: pitched forward. 2: run through: sinks to the knees, hangs there a moment, then
+         pitches forward onto the face. 3: toppled sideways, the body laid over on the side the cut came from.
+         In every one the knees go first, then gravity, then the body hits and settles with a small rebound. */
+      const t = f.t, K = f.deathK === undefined ? (f.fallForward ? 1 : 0) : f.deathK, fw = K !== 0, side = K === 3;
+      const Ln = side ? 0 : fw ? -1.42 : 1.45, Dn = side ? .74 : fw ? .8 : .62, l0 = K === 2 ? -.1 : fw ? -.24 : .2, Bn = side ? 1.5*(f.deathSide || 1) : 0;
+      const hold = K === 2 ? 420 : 0, t1 = 260 + hold, t2 = t1 + 360;
+      alpha = K === 2 ? -40*DEG : -80*DEG; phi = K === 2 ? 20*DEG : 60*DEG; direct = true;
+      if (t < 260){ const q = smooth(t/260); lean = l0*q; drop = (K === 2 ? .5 : .42)*q; }
+      else if (t < t1){ const q = (t - 260)/hold; lean = l0 + .06*Math.sin(q*9); drop = .5 + .02*q; }
+      else if (t < t2){ const e = Math.pow((t - t1)/360, 2); lean = lerp(l0, Ln, e); drop = lerp(K === 2 ? .52 : .42, Dn, e); P.bank = Bn*e; }
+      else { const q = clamp((t - t2)/280, 0, 1), bo = Math.sin(q*Math.PI)*(1 - q)*.14; lean = Ln - Math.sign(Ln || 1)*bo*(side ? 0 : 1); drop = Dn - bo*.35; P.bank = Bn*(1 - bo*.1); }
+      if (t >= t2 && f.deadSid !== f.sid){ f.deadSid = f.sid; const dx = side ? Math.cos(f.yaw)*.6*(f.deathSide || 1) : Math.sin(f.yaw)*(fw ? -.7 : .7), dz = side ? -Math.sin(f.yaw)*.6*(f.deathSide || 1) : Math.cos(f.yaw)*(fw ? -.7 : .7); dustFx(f.pos.x + dx, f.pos.z + dz, 6, .35); Sfx.thud(.9, panOf(f)); }
       break;
     }
     case 'qte': {
@@ -6186,7 +6243,7 @@ function poseFighter(f, dt, now){
     else if (f.state === 'active'){ const q = cutCurve(u, .8, 1.6); alpha = a.angle; phi = lerp(50, 74, Math.min(1, q*1.25))*DEG; v.atkThrust = lerp(-.34, 1.05, q); lean = lerp(.12, -.26, smooth(Math.min(1, u/CONTACT))); drop = lerp(.05, .1, smooth(Math.min(1, u/CONTACT))); snap = true; }
     else if (f.state === 'recovery'){ const q = smooth(clamp((u - .12)/.88, 0, 1)); alpha = lerpAng(a.angle, f.guardAngle, q); phi = lerp(74, GP, q)*DEG; v.atkThrust = lerp(1.05, 0, q); lean = lerp(-.26, 0, q); drop = lerp(.1, 0, q); }
   }
-  let hTwist = null; v.hTrail = false; v.hNoCarry = false;
+  let hTwist = null; v.hTrail = false; v.hNoCarry = false; v.ripK = 0;
   if (a && a.heavy && !a.art && !a.qte && !a.chain && (f.state === 'windup' || f.state === 'hold' || f.state === 'active' || f.state === 'recovery')){
     const H = heavyStyle(f, a, u, GP);
     if (H){
@@ -6246,7 +6303,7 @@ function poseFighter(f, dt, now){
   }
   if (f.state === 'throw'){ const u2 = f.t/Math.max(1, f.dur); twist = u2 < .38 ? -.38*smooth(u2/.38) : lerp(-.38, .32, easeOut(clamp((u2 - .38)/.35, 0, 1))); lean = u2 < .38 ? .06 : -.1; }
   if (f.state === 'idle' && f.inj.arm){ phi -= 9*DEG*f.inj.arm; drop += .02*f.inj.arm; }
-  if (f.state === 'idle' && T < (f.brakeUntil || 0)) drop = Math.max(drop, .2*(f.brakeUntil - T)/240);   // absorbing the stop
+  if (f.state === 'idle' && T < (f.brakeUntil || 0)){ const bq = (f.brakeUntil - T)/240; drop = Math.max(drop, .2*bq); lean = Math.min(lean, -.1*Math.sin(Math.PI*Math.min(1, bq*1.2))); }   // absorbing the stop: the weight rocks forward over the planted foot
   // torso twist: coil toward the side the blow starts from, uncoil through the swing
   if (a && (f.state === 'windup' || f.state === 'hold' || f.state === 'active' || f.state === 'recovery')){
     const A = animOf(f), side = Math.cos(a.angle)*(a.heavy ? 1.3 : 1)*A.tw*(A.lunge && !a.heavy ? .25 : 1)*(v.leftCut ? -1 : 1);
@@ -6257,6 +6314,8 @@ function poseFighter(f, dt, now){
   }
   if (hTwist !== null) twist = hTwist;
   if (P.twist === undefined) P.twist = 0;
+  if (P.bank === undefined) P.bank = 0;
+  if (f.state !== 'dead') P.bank = lerp(P.bank, 0, k);
   P.twist = (f.state === 'active' || direct) ? twist : lerp(P.twist, twist, f.state === 'hitstun' ? k*.5 : f.state === 'throw' ? kf : k);
   if (snap){ P.alpha = alpha; P.phi += wrap(phi - P.phi); }
   else { const kk = fast ? kf : k; P.alpha = lerpAng(P.alpha, alpha, kk); P.phi += wrap(phi - P.phi)*kk; }
@@ -6384,13 +6443,14 @@ function poseFighter(f, dt, now){
     legTuck = sq;
     P.tx = toLx(f.dir.x, f.dir.z)*.3; P.tz = toLz(f.dir.x, f.dir.z)*.3;
   } else {
-    _q1.setFromEuler(_eul.set(P.lean, P.twist, 0, 'YXZ'));
+    _q1.setFromEuler(_eul.set(P.lean, P.twist, P.bank, 'YXZ'));
     const tl = Math.hypot(P.tx, P.tz);
     if (tl > 1e-4){ _q2.setFromAxisAngle(_axis.set(P.tz, 0, -P.tx).normalize(), tl); v.body.quaternion.copy(_q2).multiply(_q1); }
     else v.body.quaternion.copy(_q1);
     const stride = Math.min(1, Math.hypot(f.vel.x, f.vel.z)/2.6)*(f.state === 'dash' ? 0 : 1);
-    v.body.position.y = 1 - P.drop - .045*stride*Math.abs(Math.sin(f.walk)) - .03*stride + Math.sin(now*(winded(f) ? .011 : .004) + (f.isPlayer ? 0 : 2))*(winded(f) ? .028 : .01);
-    if (stride > .05 && !f.air){ v.body.rotateZ(Math.sin(f.walk)*.045*stride); v.body.rotateY(-Math.sin(f.walk)*.07*stride); }
+    const GT = gaitOf(f);
+    v.body.position.y = 1 - P.drop - GT.low - .045*GT.bob*stride*Math.abs(Math.sin(f.walk)) - .03*stride + Math.sin(now*(winded(f) ? .011 : .004) + (f.isPlayer ? 0 : 2))*(winded(f) ? .028 : .01);
+    if (stride > .05 && !f.air){ v.body.rotateZ(Math.sin(f.walk)*.045*stride*GT.sway); v.body.rotateY(-Math.sin(f.walk)*.07*stride*GT.sway); }
     // the whole body turns through the spin, and a spin cut finishes the turn
     let spinPh = 0;
     if (f.state === 'spin') spinPh = spinCurve(f.t/SPIN_DUR);
@@ -6402,13 +6462,18 @@ function poseFighter(f, dt, now){
     const su = f.state === 'spin' ? f.t/SPIN_DUR : -1;
     v.spinW = lerp(v.spinW || 0, su >= 0 ? clamp(Math.abs(spinCurve(su + .02) - spinCurve(su - .02))/.04/4.4, 0, 1) : 0, 1 - Math.exp(-dt*.012));
     if (f.state === 'dash') legSplit = .75*Math.min(1, f.t/50);
+    if (f.state === 'hitstun' && (f.hitKind === 'heavy' || f.hitKind === 'pull')) legSplit = Math.max(legSplit, .55*(1 - smooth(u)));
     // up on the ball of the foot through the turn, legs gathered under the hips instead of split
     if (f.state === 'spin') legTuck = Math.max(legTuck, .13*Math.sin(Math.PI*u));
   }
   if (f.air){ const ua = clamp((T - f.air.start)/(f.air.end - f.air.start), 0, 1); legTuck = Math.max(legTuck, .7*Math.sin(Math.PI*ua)); }
   const spd = f.air ? 0 : Math.hypot(f.vel.x, f.vel.z);
   const stepBefore = Math.floor(f.walk/Math.PI);
-  f.walk += dt*(spd*.0042 + (spd > .3 ? .0035 : 0));
+  const GT = gaitOf(f);
+  f.walk += dt*(spd*.0042 + (spd > .3 ? .0035 : 0))*GT.cad;
+  // coming to a stop from speed: one braking step and the weight settles (the drop is read by the idle pose)
+  const spdPrev = v.spdPrev === undefined ? spd : v.spdPrev; v.spdPrev = spd;
+  if (spdPrev > 2.2 && spd < 1 && f.state === 'idle' && T > (f.brakeUntil || 0)){ f.brakeUntil = T + 200; }
   if (Math.floor(f.walk/Math.PI) !== stepBefore && spd > 1.2 && (f.state === 'idle' || f.state === 'windup' || f.state === 'parry')){
     Sfx.step(f.isPlayer ? .9 : .6, panOf(f));
     if (spd > 3) dustFx(f.pos.x, f.pos.z, 1, .15);
@@ -6416,7 +6481,7 @@ function poseFighter(f, dt, now){
     if (ARENA.key === 'kar') footprint(_tmp.x, _tmp.z, f.yaw);
     else if (WX.mode === 'rain') { splash(_tmp.x, _tmp.z); splash(_tmp.x + rand(-.1, .1), _tmp.z + rand(-.1, .1)); }
   }
-  const amp = Math.min(1, spd/3)*.62*(f.state === 'dash' ? 0 : 1);
+  const amp = Math.min(1, spd/3)*.62*(f.state === 'dash' ? 0 : 1)*GT.amp;
   // which way the feet are going, in the body's frame: forward steps swing the legs, side steps swing them out and across
   const lvx = spd > .05 ? toLx(f.vel.x, f.vel.z)/spd : 0, lvz = spd > .05 ? toLz(f.vel.x, f.vel.z)/spd : 1;
   const fwdS = Math.abs(lvz), sideS = lvx;
@@ -6450,7 +6515,7 @@ function poseFighter(f, dt, now){
   // on the knees: thighs down to the knees on the stones, shins flat behind; lying, the legs carry on along the body
   if ((f.state === 'dead' || f.state === 'finVictim') && P.drop > .05){
     const w = clamp((P.drop - .05)/.3, 0, 1), hipH = Math.max(.02, 1 - P.drop - .08);
-    const lie = clamp((Math.abs(P.lean) - .75)/.55, 0, 1);
+    const lie = clamp((Math.max(Math.abs(P.lean), Math.abs(P.bank)) - .75)/.55, 0, 1);
     const a = Math.acos(clamp(hipH/.44, 0, 1));
     const thK = a - P.lean, knK = -Math.PI/2 - a;                      // kneeling
     for (let i=0;i<2;i++){
@@ -6513,6 +6578,8 @@ function poseFighter(f, dt, now){
   } else if (f.w && f.w.chain){ chainHand(f, _a, now); if (f.state === 'throw') _a.copy(throwArm(f, f.t/Math.max(1, f.dur))); }
   else {
     v.gripA.getWorldPosition(_a); v.body.worldToLocal(_a); if (flA > .01) _a.lerp(LEFT_REST, flA);
+    v.hurtK = f.state === 'hitstun' ? (v.hurtK || 0) : lerp(v.hurtK || 0, 0, 1 - Math.exp(-(dt || 0)*.012));
+    if ((v.hurtK || 0) > .01){ _wp2.set(-.1, .28, -.25); _a.lerp(_wp2, v.hurtK); }
     /* the rapier is a one-handed sword: the free arm is carried raised behind, the fencer's way, and flung down and back
        for balance as the body drives out in a lunge */
     if (f.wkey === 'rapier'){
@@ -6633,7 +6700,7 @@ function updateTrail(f){
   const sweeping = f.state === 'parry' && f.prevAlpha !== null && angDiff(f.pose.alpha, f.prevAlpha) > 1.2*DEG;
   const twirl = (T - (f.twirlT || -1e9) < 320 && (f.state === 'feintRecover' || f.state === 'idle')) || (Math.abs(f.twVel || 0) > 7 && canAct(f));
   const spinning = (f.state === 'spin' && f.t > SPIN_DUR*.2 && f.t < SPIN_DUR*.85) || (f.state === 'windup' && f.atk && f.atk.spin && f.spinFrom < .8 && f.t < f.dur*.7) || (f.state === 'art' && artTrail(f));
-  const qx = G.qte && G.qte.ex, emit = spinning || v.hTrail || (f.state === 'qte' && qx && qx.att === f && G.qte.t - qx.t0 < QTE_EX*.62) || f.state === 'active' || (f.state === 'recovery' && f.t < 90) || sweeping || twirl || (G.phase === 'intro' && f.drawing);
+  const qx = G.qte && G.qte.ex, emit = spinning || v.hTrail || v.ripK || (f.state === 'qte' && qx && qx.att === f && G.qte.t - qx.t0 < QTE_EX*.62) || f.state === 'active' || (f.state === 'recovery' && f.t < 90) || sweeping || twirl || (G.phase === 'intro' && f.drawing);
   // the left twin blade's cut is the mirror of the right rig's
   const mir = f.wkey === 'dual' && (v.leftK || 0) > .5;
   const sample = () => { const bp = new THREE.Vector3(), tp = new THREE.Vector3(); v.base.getWorldPosition(bp); v.tip.getWorldPosition(tp);
@@ -6652,7 +6719,7 @@ function updateTrail(f){
     sample();
     if (v.rigHold){ v.rig.rotation.z = v.rigHold[0]; v.swing.rotation.y = v.rigHold[1]; v.rig.updateMatrixWorld(true); }
     // a flourish leaves only a short sweep behind the blade, not a full disc
-    const cap = twirl ? 6 : spinning ? (f.state === 'art' ? 12 : 8) : v.hTrail ? 10 : tr.N;
+    const cap = twirl ? 6 : spinning ? (f.state === 'art' ? 12 : 8) : v.hTrail ? 10 : v.ripK ? 8 : tr.N;
     while (tr.pts.length > cap) tr.pts.pop();
     if (f.state === 'active' || f.state === 'qte') tr.cut = true;
   } else if (tr.pts.length){
@@ -6662,7 +6729,7 @@ function updateTrail(f){
   }
   const n = tr.pts.length;
   if (n < 2){ tr.geo.setDrawRange(0, 0); return; }
-  const col = (f.state === 'parry' || f.state === 'parryRecover' || twirl || f.state === 'spin' || v.hTrail) ? tr.steel : (f.atk && f.atk.riposte ? tr.gold : (f.atk && f.atk.heavy ? tr.heat : tr.color));
+  const col = (f.state === 'parry' || f.state === 'parryRecover' || twirl || f.state === 'spin' || v.hTrail || v.ripK) ? tr.steel : (f.atk && f.atk.riposte ? tr.gold : (f.atk && f.atk.heavy ? tr.heat : tr.color));
   for (let i=0;i<n;i++){
     const p = tr.pts[i], u = i/(n - 1);
     // brush pressure: the root of the stroke creeps toward the tip at the tail (it thins to a point) and a touch at the head
