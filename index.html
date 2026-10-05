@@ -2906,48 +2906,66 @@ function buildView(isPlayer){
    The patch covers the front of the head: canvas x runs across the face, canvas y from the forehead (theta .33pi) to the chin
    (theta .75pi). Eyes sit at y 86, brows at 48, the nose at 146, the mouth at 181 (of 256). */
 const FACE_CACHE = new Map();
-function faceTextures(P, lower, scar){
-  const key = [P.hair, P.skin, lower, scar].join('|');
+function faceTextures(P, lower, scar, stubble){
+  const key = [P.hair, P.skin, lower, scar, stubble].join('|');
   if (FACE_CACHE.has(key)) return FACE_CACHE.get(key);
   const hx = n => '#' + new THREE.Color(n).getHexString();
-  const INKC = '#15130F', brow = hx(P.hair === P.dark ? 0x1A1714 : P.hair), line = '#' + new THREE.Color(P.skin).lerp(new THREE.Color(0x2A1810), .78).getHexString();
+  const INKC = '#15130F', PAPER = '#F4EEE0', brow = hx(P.hair === P.dark ? 0x1A1714 : P.hair);
+  const skinC = new THREE.Color(P.skin), line = '#' + skinC.clone().lerp(new THREE.Color(0x2A1810), .72).getHexString();
+  const shade = 'rgba(70,32,22,.2)', shade2 = 'rgba(70,32,22,.11)';
   const make = (draw) => canvasTex(256, 256, (g) => { g.lineCap = 'round'; g.lineJoin = 'round'; draw(g); });
   // a tapered brush stroke along a quadratic curve
   const stroke = (g, x0, y0, cx, cy, x1, y1, w0, w1, col) => {
-    const N = 14; g.fillStyle = col;
+    const N = 18; g.fillStyle = col;
     for (let i=0;i<=N;i++){ const t = i/N, a = (1 - t)*(1 - t), b = 2*(1 - t)*t, c = t*t, x = a*x0 + b*cx + c*x1, y = a*y0 + b*cy + c*y1, w = w0 + (w1 - w0)*t; g.beginPath(); g.arc(x, y, Math.max(.4, w/2), 0, TAU); g.fill(); }
   };
-  const EX = [78, 178], EY = 88;
-  const brows = (g, tilt, lift) => { for (const [i, x] of EX.entries()){ const s = i ? 1 : -1; stroke(g, x - 26*s, 52 - lift + tilt*.5, x, 44 - lift, x + 22*s, 52 - lift - tilt, 9, 3, brow); } };
-  const eyesOpen = (g, wide) => { for (const [i, x] of EX.entries()){ const s = i ? 1 : -1;
-      stroke(g, x - 20*s, EY + 2, x - 2*s, EY - 8 - wide*4, x + 20*s, EY - 1, 5, 2.5, INKC);               // upper lid
-      stroke(g, x - 14*s, EY + 5, x, EY + 9 + wide*2, x + 14*s, EY + 5, 1.6, 1, INKC);                        // lower lid, faint
-      g.fillStyle = INKC; g.beginPath(); g.arc(x - 1*s, EY + 1 - wide, 6 - wide*1.5, 0, TAU); g.fill();        // iris
-      g.fillStyle = 'rgba(255,251,240,.9)'; g.beginPath(); g.arc(x + 2*s, EY - 2 - wide, 1.6, 0, TAU); g.fill(); } };
-  const eyesShut = (g, droop) => { for (const [i, x] of EX.entries()){ const s = i ? 1 : -1; stroke(g, x - 18*s, EY, x, EY + 6 + droop, x + 18*s, EY - 1, 4, 2, INKC); } };
-  const eyesSqueeze = (g) => { for (const [i, x] of EX.entries()){ const s = i ? 1 : -1; stroke(g, x - 18*s, EY - 7, x + 2*s, EY + 1, x - 16*s, EY + 7, 4.5, 2, INKC); } };
-  const nose = (g) => { if (lower) return; stroke(g, 131, 118, 138, 142, 126, 150, 3, 2, line); stroke(g, 118, 152, 122, 155, 127, 152, 2, 1.5, line); };
+  const blob = (g, x, y, rx, ry, col, rot) => { g.fillStyle = col; g.beginPath(); g.ellipse(x, y, rx, ry, rot || 0, 0, TAU); g.fill(); };
+  const EX = [76, 180], EY = 94;
+  // structure: the brow ridge, the hollows of the cheeks and the jaw, laid in as thin washes so the head reads as a skull
+  const structure = (g, hard) => {
+    for (const [i, x] of EX.entries()){ const sx = i ? 1 : -1; blob(g, x + 4*sx, EY - 6, 30, 13, shade2); blob(g, x + 14*sx, 136, 16, 30, hard ? shade : shade2, .35*sx); }
+    blob(g, 128, 236, 46, 20, shade2);
+    stroke(g, 100, 120, 128, 122, 156, 120, 0, 0, shade2);
+  };
+  const brows = (g, tilt, lift, w) => { for (const [i, x] of EX.entries()){ const sx = i ? 1 : -1;
+      stroke(g, x - 32*sx, 62 - lift + tilt*.7, x + 2*sx, 48 - lift - tilt*.1, x + 30*sx, 58 - lift - tilt, w || 17, 5, brow); } };
+  const eyesOpen = (g, wide, narrow) => { for (const [i, x] of EX.entries()){ const sx = i ? 1 : -1;
+      const h = 12 + wide*4 - narrow*3;
+      blob(g, x, EY + 3, 27, h, PAPER);                                                                     // the white of the eye
+      g.fillStyle = INKC; g.beginPath(); g.arc(x - 2*sx, EY + 3, 10 - narrow*1.5, 0, TAU); g.fill();         // iris
+      g.fillStyle = 'rgba(255,251,240,.95)'; g.beginPath(); g.arc(x + 2*sx, EY - 1, 2.8, 0, TAU); g.fill();  // catchlight
+      stroke(g, x - 30*sx, EY + 2, x - 2*sx, EY - 12 - wide*4 + narrow*5, x + 29*sx, EY + 1, 13, 4, INKC);   // upper lid, heavy
+      stroke(g, x - 22*sx, EY + 12, x, EY + 16 + wide*2 - narrow*3, x + 22*sx, EY + 10, 3, 1.4, INKC);      // lower lid
+      stroke(g, x + 29*sx, EY, x + 35*sx, EY - 4, x + 39*sx, EY - 11, 5, 1.2, INKC); } };                   // a flick at the outer corner
+  const eyesShut = (g, droop) => { for (const [i, x] of EX.entries()){ const sx = i ? 1 : -1; stroke(g, x - 28*sx, EY + 1, x, EY + 10 + droop, x + 28*sx, EY - 2, 9, 3, INKC); } };
+  const eyesSqueeze = (g) => { for (const [i, x] of EX.entries()){ const sx = i ? 1 : -1; stroke(g, x - 26*sx, EY - 11, x + 4*sx, EY + 1, x - 24*sx, EY + 12, 9, 3, INKC); stroke(g, x - 8*sx, EY - 16, x + 12*sx, EY - 18, x + 28*sx, EY - 11, 3, 1.2, line); } };
+  const nose = (g) => { if (lower) return; stroke(g, 134, 110, 144, 144, 128, 158, 5.5, 3.2, line); stroke(g, 108, 160, 116, 166, 126, 161, 4, 2, line); };
   const mouth = (g, kind) => {
     if (lower) return;
-    if (kind === 'calm') stroke(g, 102, 182, 128, 186, 154, 180, 4.6, 3.2, line);
-    else if (kind === 'dead') { g.fillStyle = '#3A1410'; g.beginPath(); g.ellipse(128, 184, 13, 8, 0, 0, TAU); g.fill(); }
+    if (kind === 'calm') stroke(g, 94, 190, 128, 198, 162, 187, 7.5, 5, line);
+    else if (kind === 'dead') { g.fillStyle = '#3A1410'; g.beginPath(); g.ellipse(128, 192, 14, 9, 0, 0, TAU); g.fill(); stroke(g, 108, 186, 128, 182, 148, 186, 3, 3, line); }
     else {
-      const w = kind === 'shout' ? 32 : 36, h = kind === 'shout' ? 34 : 16, y = kind === 'shout' ? 172 : 178;
+      const w = kind === 'shout' ? 34 : 38, h = kind === 'shout' ? 36 : 17, y = kind === 'shout' ? 178 : 184;
       g.fillStyle = '#3A1410'; g.beginPath(); g.moveTo(128 - w, y); g.quadraticCurveTo(128, y - 6, 128 + w, y); g.quadraticCurveTo(128 + w*.7, y + h, 128, y + h + 2); g.quadraticCurveTo(128 - w*.7, y + h, 128 - w, y); g.fill();
-      g.fillStyle = 'rgba(245,238,224,.95)'; g.fillRect(128 - w*.7, y - 1, w*1.4, kind === 'shout' ? 4 : 5);          // teeth
-      if (kind === 'pain') g.fillRect(128 - w*.6, y + h - 5, w*1.2, 3);
-      stroke(g, 128 - w - 2, y + 1, 128, y - 7, 128 + w + 2, y + 1, 2.4, 2.4, line);
+      g.fillStyle = PAPER; g.fillRect(128 - w*.72, y - 1, w*1.44, kind === 'shout' ? 5 : 6);          // teeth
+      if (kind === 'pain') g.fillRect(128 - w*.62, y + h - 6, w*1.24, 4);
+      stroke(g, 128 - w - 3, y + 1, 128, y - 8, 128 + w + 3, y + 1, 4, 4, INKC);
     }
     // the fold from nose to mouth, deeper when shouting
-    if (kind === 'shout' || kind === 'pain') for (const s of [-1, 1]) stroke(g, 128 + 22*s, 150, 128 + 30*s, 162, 128 + 32*s, 176, 2.2, 1, line);
+    if (kind === 'shout' || kind === 'pain') for (const sx of [-1, 1]) stroke(g, 128 + 24*sx, 154, 128 + 33*sx, 168, 128 + 35*sx, 184, 3, 1.2, line);
   };
-  const scarMark = (g) => { if (scar) stroke(g, 190, 60, 182, 90, 170, 128, 4, 2, '#7A1A14'); };
+  // stubble: a wash of hair colour over the jaw, broken into grain
+  const stubbleWash = (g) => { if (!stubble || lower) return; const hc = new THREE.Color(P.hair);
+    g.fillStyle = `rgba(${Math.round(hc.r*255)},${Math.round(hc.g*255)},${Math.round(hc.b*255)},.22)`;
+    g.beginPath(); g.moveTo(70, 150); g.quadraticCurveTo(80, 230, 128, 246); g.quadraticCurveTo(176, 230, 186, 150); g.quadraticCurveTo(160, 172, 128, 174); g.quadraticCurveTo(96, 172, 70, 150); g.fill();
+    for (let i=0;i<140;i++){ const a = Math.random()*TAU, r = Math.sqrt(Math.random()), x = 128 + Math.cos(a)*56*r, y = 205 + Math.sin(a)*40*r; if (y < 176) continue; g.fillStyle = `rgba(${Math.round(hc.r*255)},${Math.round(hc.g*255)},${Math.round(hc.b*255)},${.25 + Math.random()*.3})`; g.fillRect(x, y, 1.6, 2.4); } };
+  const scarMark = (g) => { if (!scar) return; stroke(g, 196, 44, 184, 86, 168, 134, 5.5, 2.5, '#7A1A14'); for (const y of [62, 84, 106]) stroke(g, 186 - (y - 62)*.25, y, 184 - (y - 62)*.25, y, 174 - (y - 62)*.25, y + 2, 2.2, 1.2, '#7A1A14'); };
   const T = {
-    calm: make(g => { brows(g, 6, 0); eyesOpen(g, 0); nose(g); mouth(g, 'calm'); scarMark(g); }),
-    blink: make(g => { brows(g, 6, 0); eyesShut(g, 0); nose(g); mouth(g, 'calm'); scarMark(g); }),
-    shout: make(g => { brows(g, 16, -4); eyesOpen(g, 1); nose(g); mouth(g, 'shout'); scarMark(g); }),
-    pain: make(g => { brows(g, -12, 6); eyesSqueeze(g); nose(g); mouth(g, 'pain'); scarMark(g); }),
-    dead: make(g => { brows(g, -4, -2); eyesShut(g, 3); nose(g); mouth(g, 'dead'); scarMark(g); }),
+    calm: make(g => { structure(g, 0); stubbleWash(g); brows(g, 7, 0); eyesOpen(g, 0, 1); nose(g); mouth(g, 'calm'); scarMark(g); }),
+    blink: make(g => { structure(g, 0); stubbleWash(g); brows(g, 7, 0); eyesShut(g, 0); nose(g); mouth(g, 'calm'); scarMark(g); }),
+    shout: make(g => { structure(g, 1); stubbleWash(g); brows(g, 18, -8, 19); eyesOpen(g, 1, 0); nose(g); mouth(g, 'shout'); scarMark(g); }),
+    pain: make(g => { structure(g, 1); stubbleWash(g); brows(g, -12, 8); eyesSqueeze(g); nose(g); mouth(g, 'pain'); scarMark(g); }),
+    dead: make(g => { structure(g, 1); stubbleWash(g); brows(g, -4, -2); eyesShut(g, 3); nose(g); mouth(g, 'dead'); scarMark(g); }),
   };
   FACE_CACHE.set(key, T); return T;
 }
@@ -2989,23 +3007,25 @@ const LOOK_SW = {
 };
 const LOOK_COLS = [
   ['main', 'Robe', ['kagit', 'kul', 'tas', 'isli', 'kurum', 'murekkep', 'kizil', 'bordo', 'altin', 'lacivert', 'gok', 'yosun', 'cam', 'hardal', 'mor', 'sakura']],
-  ['hakama', 'Legs', ['kagit', 'kul', 'tas', 'isli', 'kurum', 'murekkep', 'kizil', 'bordo', 'lacivert', 'yosun', 'cam', 'mor']],
-  ['accent', 'Accent', ['kagit', 'kul', 'murekkep', 'kizil', 'bordo', 'altin', 'lacivert', 'gok', 'hardal', 'sakura']],
+  ['hakama', 'Legs', ['kagit', 'kul', 'tas', 'isli', 'kurum', 'murekkep', 'kizil', 'bordo', 'lacivert', 'yosun', 'cam', 'mor', 'kahve']],
+  ['accent', 'Accent', ['kagit', 'kemik', 'kul', 'murekkep', 'kizil', 'bordo', 'altin', 'lacivert', 'gok', 'hardal', 'sakura']],
   ['metal', 'Armor', ['murekkep', 'demir', 'kul', 'kemik', 'kizil', 'altin']],
   ['skin', 'Skin', ['ten1', 'ten2', 'ten3', 'ten4']],
   ['hair', 'Hair', ['murekkep', 'kurum', 'kahve', 'kestane', 'sari', 'gumus', 'kagit', 'kizil']],
 ];
 const LOOK_PRESETS = {
-  ronin:    { name:'Ronin', head:'kasa', hair:'ponytail', beard:'stubble', face:'none', torso:'kimono', shoulders:'none', arms:'wide', legs:'hakama', feet:'waraji', back:'scarf', col:{} },
-  samuray:  { name:'Samurai', head:'none', hair:'topknot', beard:'none', face:'none', torso:'do', shoulders:'light', arms:'sleeve', legs:'hakama', feet:'waraji', back:'band', col:{} },
-  zirhli:   { name:'Armored', head:'kabuto', face:'menpo', torso:'heavy', shoulders:'heavy', arms:'kote', legs:'tassets', feet:'suneate', back:'cords', col:{} },
-  duellocu: { name:'Duelist', head:'brim', hair:'long', beard:'mustache', face:'none', torso:'coat', shoulders:'none', arms:'narrow', legs:'tails', feet:'boots', back:'plume', col:{} },
+  ronin:    { name:'Ronin', head:'kasa', hair:'ponytail', beard:'stubble', face:'scar', torso:'kimono', shoulders:'none', arms:'wide', legs:'hakama', feet:'waraji', back:'scarf', col:{ main:'isli', hakama:'murekkep', accent:'kizil' } },
+  samuray:  { name:'Samurai', head:'hachigane', hair:'topknot', beard:'none', face:'none', torso:'do', shoulders:'light', arms:'sleeve', legs:'hakama', feet:'waraji', back:'band', col:{ main:'lacivert', hakama:'murekkep', metal:'murekkep', accent:'kagit' } },
+  zirhli:   { name:'Armored', head:'kabuto', face:'menpo', torso:'heavy', shoulders:'heavy', arms:'kote', legs:'tassets', feet:'suneate', back:'cords', col:{ main:'kurum', hakama:'murekkep', metal:'demir', accent:'altin' } },
+  duellocu: { name:'Duelist', head:'brim', hair:'long', beard:'mustache', face:'none', torso:'coat', shoulders:'none', arms:'narrow', legs:'tails', feet:'boots', back:'plume', col:{ main:'bordo', hakama:'murekkep', accent:'altin' } },
   golge:    { name:'Shadow', head:'hood', face:'cloth', torso:'kimono', shoulders:'none', arms:'narrow', legs:'pants', feet:'tabi', back:'band', col:{ main:'kurum', hakama:'murekkep', accent:'kizil' } },
-  oni:      { name:'Oni', head:'oni', face:'oni', torso:'heavy', shoulders:'heavy', arms:'kote', legs:'tassets', feet:'suneate', back:'cords', col:{ metal:'kizil', accent:'altin', main:'kurum', hakama:'murekkep' } },
+  oni:      { name:'Oni', head:'oni', face:'oni', torso:'heavy', shoulders:'heavy', arms:'kote', legs:'tassets', feet:'suneate', back:'cords', col:{ metal:'kizil', accent:'altin', main:'murekkep', hakama:'murekkep' } },
   sohei:    { name:'Warrior monk', head:'hood', hair:'bald', face:'none', torso:'kimono', shoulders:'none', arms:'wide', legs:'short', feet:'geta', back:'none', col:{ main:'kagit', hakama:'kurum', accent:'kagit' } },
   kitsune:  { name:'Kitsune', head:'none', hair:'long', face:'kitsune', torso:'haori', shoulders:'none', arms:'sleeve', legs:'hakama', feet:'tabi', back:'band', col:{ main:'kagit', hakama:'isli', accent:'kizil' } },
-  sancak:   { name:'Standard bearer', head:'jingasa', face:'menpo', torso:'do', shoulders:'light', arms:'kote', legs:'hakama', feet:'suneate', back:'banner', col:{ accent:'kizil', metal:'murekkep' } },
-  gezgin:   { name:'Wanderer', head:'none', hair:'bald', beard:'full', face:'scar', torso:'haori', shoulders:'fur', arms:'bare', legs:'short', feet:'bare', back:'cape', col:{ main:'isli', hakama:'tas', accent:'bordo' } },
+  sancak:   { name:'Standard bearer', head:'jingasa', face:'menpo', torso:'do', shoulders:'light', arms:'kote', legs:'hakama', feet:'suneate', back:'banner', col:{ main:'kurum', hakama:'murekkep', accent:'kizil', metal:'murekkep' } },
+  gezgin:   { name:'Wanderer', head:'none', hair:'wild', beard:'full', face:'scar', torso:'haori', shoulders:'fur', arms:'bare', legs:'short', feet:'bare', back:'cape', col:{ main:'isli', hakama:'tas', accent:'bordo', hair:'gumus' } },
+  kensei:   { name:'Kensei', head:'none', hair:'bun', beard:'goatee', face:'scar', torso:'kimono', shoulders:'none', arms:'sleeve', legs:'hakama', feet:'tabi', back:'none', col:{ main:'murekkep', hakama:'murekkep', accent:'kagit', hair:'gumus' } },
+  kurt:     { name:'Wolf', head:'hachigane', hair:'wild', beard:'stubble', face:'cloth', torso:'haori', shoulders:'fur', arms:'kote', legs:'pants', feet:'boots', back:'scarf', col:{ main:'kurum', hakama:'kahve', accent:'kemik', metal:'demir' } },
 };
 function blankLook(){ const L = { col:{} }; for (const [k] of LOOK_SLOTS) L[k] = 'auto'; return L; }
 function cleanLook(L){
@@ -3054,7 +3074,7 @@ function lookPal(base, L){
 }
 const lookKey = (f) => f.wkey + '|' + JSON.stringify(f.lookCfg || null);
 /* ---- the outfit: rigid pieces on the body, built from the resolved look ---- */
-const HEAD_TOP = { none:1.1, shaved:1.1, knot:1.14, hachigane:1.11, kasa:1.22, jingasa:1.16, brim:1.27, hood:1.13, kabuto:1.18, oni:1.2 };
+const HEAD_TOP = { none:1.1, shaved:1.1, knot:1.14, hachigane:1.11, kasa:1.26, jingasa:1.16, brim:1.27, hood:1.13, kabuto:1.18, oni:1.2 };
 function dress(f){
   const v = f.v, L = f.lookCfg || null, R = resolveLook(f.wkey, L), P = lookPal(v.pal, L), g = v.outfit;
   // clear the last outfit, including pieces hung on the arms and legs
@@ -3106,18 +3126,21 @@ function dress(f){
   v.faceTex = null; v.faceKey = '';
   if (!covered){
     const lower = R.face === 'menpo' || R.face === 'cloth';
-    v.faceTex = faceTextures(P, lower, R.face === 'scar');
+    v.faceTex = faceTextures(P, lower, R.face === 'scar', R.beard === 'stubble');
     const fm = new THREE.MeshBasicMaterial({ map:v.faceTex.calm, transparent:true, alphaTest:.3, depthWrite:false });
     v.faceMat = fm;
     const face = new THREE.Mesh(new THREE.SphereGeometry(.1418, 28, 18, Math.PI*1.5 - .95, 1.9, Math.PI*.33, Math.PI*.42), fm);
     face.position.set(0, .96, 0); face.scale.set(1, 1.05, 1.02); face.userData.noEdge = true; face.renderOrder = 1; g.add(face);
   }
-  if (R.face === 'scar'){ const sc = add(new THREE.BoxGeometry(.016, .15, .012), mk('scar', 0x7A1A14), .056, .975, -.137, 0); sc.rotation.z = .45; }
-  else if (R.face === 'cloth'){ add(new THREE.CylinderGeometry(.15, .142, .11, 16, 1, true, Math.PI - 1.35, 2.7), mk('fcloth', P.dark, ds), 0, .9, 0, .01); }
+  if (R.face === 'cloth'){ add(new THREE.CylinderGeometry(.15, .142, .11, 16, 1, true, Math.PI - 1.35, 2.7), mk('fcloth', P.dark, ds), 0, .9, 0, .01); }
   else if (R.face === 'menpo'){
-    add(new THREE.BoxGeometry(.2, .11, .08), mk('mask', P.dark), 0, .9, -.12, .012);
-    add(new THREE.BoxGeometry(.03, .05, .04), mk('mask', P.dark), 0, .935, -.165, .006);
-    for (let i=0;i<3;i++) add(new THREE.BoxGeometry(.22 - i*.01, .025, .1), mk('metal', P.metal), 0, .84 - i*.028, -.07, .006);
+    // menpō: a lacquered lower face with a grimace of teeth, a bristle moustache and the throat guard hanging below
+    const lac = mk('mask', P.dark);
+    const mp = add(new THREE.SphereGeometry(.15, 16, 10, Math.PI*1.5 - 1.05, 2.1, Math.PI*.47, Math.PI*.33), lac, 0, .962, 0, .012); mp.scale.set(1, 1.05, 1.02);
+    add(new THREE.ConeGeometry(.034, .06, 8), lac, 0, .928, -.16, .006).rotation.x = -Math.PI/2;
+    for (let i=0;i<5;i++) add(new THREE.BoxGeometry(.012, .018, .01), mk('bone', 0xEFE9DC), (i - 2)*.022, .886, -.141, 0);
+    for (const sx of [-1, 1]){ const m = add(new THREE.BoxGeometry(.07, .014, .018), mk('bristle', 0xD8CFBD), .045*sx, .908, -.142, 0); m.rotation.z = -.3*sx; }
+    for (let i=0;i<3;i++) add(new THREE.CylinderGeometry(.14 + i*.012, .15 + i*.012, .024, 14, 1, true, Math.PI - .95, 1.9), mk('metalD', P.metal, ds), 0, .835 - i*.03, .005, .006);
   } else if (covered){
     const kit = R.face === 'kitsune', shell = mk(kit ? 'kmask' : 'omask', kit ? 0xEFE9DC : 0x9A2A20, ds);
     add(new THREE.SphereGeometry(.152, 14, 10, Math.PI*1.5 - 1.05, 2.1, .35, 1.75), shell, 0, .96, 0, .012);
@@ -3174,13 +3197,12 @@ function dress(f){
   const masked = R.face === 'menpo' || R.face === 'oni' || R.face === 'kitsune' || R.face === 'cloth';
   if (!masked){
     const B = R.beard;
-    if (B === 'stubble' || B === 'full'){
-      const bc = B === 'full' ? hairM : mk('stubble', new THREE.Color(P.skin).lerp(new THREE.Color(P.hair), .45).getHex());
-      add(new THREE.SphereGeometry(B === 'full' ? .149 : .1435, 14, 6, Math.PI*1.08, Math.PI*.84, Math.PI*.64, Math.PI*.26), bc, 0, .96, 0, B === 'full' ? .008 : 0);
-      if (B === 'full'){ const ch = add(new THREE.ConeGeometry(.06, .11, 8), hairM, 0, .83, -.1, .008); ch.rotation.x = Math.PI + .4; }
+    if (B === 'full'){
+      add(new THREE.SphereGeometry(.149, 14, 6, Math.PI*1.08, Math.PI*.84, Math.PI*.64, Math.PI*.26), hairM, 0, .96, 0, .008);
+      const ch = add(new THREE.ConeGeometry(.06, .11, 8), hairM, 0, .83, -.1, .008); ch.rotation.x = Math.PI + .4;
     }
     if (B === 'mustache' || B === 'full' || B === 'goatee'){
-      for (const sx of [-1, 1]){ const m = add(new THREE.BoxGeometry(.06, .016, .02), hairM, .03*sx, .915, -.142, 0); m.rotation.z = .35*sx; }
+      for (const sx of [-1, 1]){ const m = add(new THREE.BoxGeometry(.055, .013, .018), hairM, .03*sx, .912, -.143, 0); m.rotation.z = .3*sx; }
     }
     if (B === 'goatee'){ const g = add(new THREE.ConeGeometry(.03, .09, 6), hairM, 0, .845, -.125, .006); g.rotation.x = Math.PI + .3; }
   }
@@ -3188,18 +3210,18 @@ function dress(f){
   else if (H === 'shaved'){ /* bare scalp, the skin sphere is enough */ }
   else if (H === 'hachigane'){
     drawHair('full');
-    add(new THREE.TorusGeometry(.146, .016, 5, 18), mk('accent', P.accent), 0, 1.0, 0, .006).rotation.x = Math.PI/2 - .1;
-    add(new THREE.BoxGeometry(.13, .055, .025), mk('metal', P.metal), 0, 1.012, -.142, .008);
+    add(new THREE.TorusGeometry(.146, .016, 5, 18), mk('accent', P.accent), 0, 1.035, 0, .006).rotation.x = Math.PI/2 - .1;
+    add(new THREE.BoxGeometry(.12, .05, .025), mk('metal', P.metal), 0, 1.045, -.138, .008).rotation.x = .25;
   } else if (H === 'kasa'){
     hairCap(); drawHair('hat');
     const straw = mk('straw', P.straw, ds);
-    add(new THREE.ConeGeometry(.5, .22, 22, 1, true), straw, 0, 1.12, 0, .02);
-    add(new THREE.CircleGeometry(.5, 22), inkM, 0, 1.01, 0, 0).rotation.x = Math.PI/2;
-    for (let i=0;i<2;i++) add(new THREE.TorusGeometry(.5 - i*.2, .006, 3, 22), inkM, 0, 1.012 + i*.088, 0, 0).rotation.x = Math.PI/2;
+    add(new THREE.ConeGeometry(.5, .22, 22, 1, true), straw, 0, 1.16, 0, .02).castShadow = false;
+    add(new THREE.CircleGeometry(.5, 22), inkM, 0, 1.05, 0, 0).rotation.x = Math.PI/2;
+    for (let i=0;i<2;i++) add(new THREE.TorusGeometry(.5 - i*.2, .006, 3, 22), inkM, 0, 1.052 + i*.088, 0, 0).rotation.x = Math.PI/2;
   } else if (H === 'jingasa'){
     hairCap(); drawHair('hat');
     const lac = mk('jin', P.metal, ds);
-    add(new THREE.ConeGeometry(.4, .13, 24, 1, true), lac, 0, 1.1, 0, .016);
+    add(new THREE.ConeGeometry(.4, .13, 24, 1, true), lac, 0, 1.1, 0, .016).castShadow = false;
     add(new THREE.CircleGeometry(.4, 24), inkM, 0, 1.035, 0, 0).rotation.x = Math.PI/2;
     add(new THREE.TorusGeometry(.4, .012, 4, 24), mk('accent', P.accent), 0, 1.035, 0, .004).rotation.x = Math.PI/2;
     add(new THREE.CircleGeometry(.055, 16), mk('accent', P.accent), 0, 1.13, -.2, 0).rotation.x = -1.2;
@@ -3208,16 +3230,29 @@ function dress(f){
     const t = add(new THREE.CylinderGeometry(.035, .04, .14, 7), inkM, 0, 1.13, .04, .01); t.rotation.x = -1.1;
     add(new THREE.TorusGeometry(.145, .022, 5, 18), mk('accent', P.accent), 0, 1.0, 0, .008).rotation.x = Math.PI/2 - .12;
   } else if (H === 'hood'){
-    const hc = mk('hood', R.face === 'none' ? P.kimono : P.dark, ds);
-    add(new THREE.SphereGeometry(.168, 14, 10, Math.PI*1.5 + .62, TAU - 1.24, 0, Math.PI*.8), hc, 0, .97, .005, .014);
-    add(new THREE.CylinderGeometry(.12, .15, .14, 12, 1, true), hc, 0, .8, .01, .01);
-    add(new THREE.BoxGeometry(.24, .26, .03), hc, 0, .82, .15, .01).rotation.x = .18;
+    const hc = mk('hood', R.face === 'none' ? P.kimono : P.dark, ds), hin = mk('hoodIn', 0x15130F, ds);
+    // the crown, open at the front; a peak at the back; the cowl falling over the shoulders
+    add(new THREE.SphereGeometry(.172, 16, 10, Math.PI*1.5 + .7, TAU - 1.4, 0, Math.PI*.6), hc, 0, .975, .01, .014);
+    add(new THREE.SphereGeometry(.158, 16, 10, Math.PI*1.5 + .78, TAU - 1.56, 0, Math.PI*.6), hin, 0, .975, .01, 0);
+    add(new THREE.ConeGeometry(.09, .16, 8), hc, 0, 1.1, .1, .008).rotation.x = .9;
+    add(lathe([[.165, .88], [.21, .78], [.28, .7], [.34*bk, .62], [.36*bk, .58]], 16, Math.PI + .6, TAU - 1.2), hc, 0, 0, 0, .012);
+    add(lathe([[.155, .88], [.2, .78], [.27, .7], [.33*bk, .62]], 16, Math.PI + .7, TAU - 1.4), hin, 0, 0, 0, 0);
   } else if (H === 'kabuto' || H === 'oni'){
     const lacquer = mk('metal', P.metal);
-    add(new THREE.SphereGeometry(.19, 14, 9, 0, TAU, 0, Math.PI/2), lacquer, 0, .98, 0, .016);
-    for (let i=0;i<3;i++){ const s = add(new THREE.CylinderGeometry(.2 + i*.045, .245 + i*.05, .07, 16, 1, true), mk('metalD', P.metal, ds), 0, .95 - i*.06, .03, .012); }
-    for (const sx of [-1, 1]){ const fk = add(new THREE.BoxGeometry(.03, .12, .13), lacquer, .2*sx, .99, -.06, .01); fk.rotation.y = .4*sx; }
-    if (H === 'kabuto'){ const crest = add(new THREE.TorusGeometry(.2, .018, 4, 16, Math.PI*.9), mk('accent', P.accent), 0, 1.2, -.14, .01); crest.rotation.z = Math.PI*.05; }
+    const lacD = mk('metalD', P.metal, ds);
+    add(new THREE.SphereGeometry(.185, 16, 10, 0, TAU, 0, Math.PI*.52), lacquer, 0, .985, .005, .016);
+    for (let i=0;i<12;i++){ const a = i/12*TAU; add(new THREE.BoxGeometry(.012, .012, .17), mk('rivet', P.dark), Math.sin(a)*.1, 1.11, .005 + Math.cos(a)*.1, 0).rotation.set(1.2, a, 0); }
+    add(new THREE.SphereGeometry(.045, 10, 6), mk('accent', P.accent), 0, 1.165, .005, .006);
+    // mabizashi: the visor over the eyes; shikoro: three swept plates round the back and sides of the neck
+    const vis = add(new THREE.CylinderGeometry(.2, .245, .035, 16, 1, true, Math.PI - .95, 1.9), lacD, 0, .99, 0, .012); vis.rotation.x = .18;
+    for (let i=0;i<3;i++){ const sk = add(new THREE.CylinderGeometry(.19 + i*.04, .235 + i*.045, .065, 18, 1, true, -Math.PI*.72, Math.PI*1.44), lacD, 0, .94 - i*.058, .025, .012); sk.rotation.x = -.12;
+      add(new THREE.CylinderGeometry(.237 + i*.045, .237 + i*.045, .012, 18, 1, true, -Math.PI*.72, Math.PI*1.44), mk('lace', P.lace), 0, .905 - i*.058, .025, 0).rotation.x = -.12; }
+    for (const sx of [-1, 1]){ const fk = add(new THREE.BoxGeometry(.025, .1, .09), lacquer, .2*sx, 1.0, -.07, .01); fk.rotation.set(.1, .5*sx, -.25*sx); }
+    if (H === 'kabuto'){
+      // maedate: a tall gilt crescent standing off the brow
+      const crest = add(new THREE.TorusGeometry(.19, .022, 5, 20, Math.PI*.86), mk('accent', P.accent), 0, 1.13, -.16, .01); crest.rotation.z = Math.PI*.07;
+      add(new THREE.CircleGeometry(.05, 14), mk('accent', P.accent), 0, 1.065, -.2, 0).rotation.x = -.3;
+    }
     else {
       // long curved horns sweeping up and out
       for (const sx of [-1, 1]){
@@ -3230,26 +3265,36 @@ function dress(f){
   } else if (H === 'brim'){
     hairCap(); drawHair('hat');
     const felt = mk('felt', P.dark);
-    add(new THREE.CylinderGeometry(.42, .42, .02, 26), felt, 0, 1.07, 0, .016);
+    add(new THREE.CylinderGeometry(.42, .42, .02, 26), felt, 0, 1.07, 0, .016).castShadow = false;
     add(new THREE.CylinderGeometry(.15, .17, .19, 16), felt, 0, 1.17, 0, .016);
     add(new THREE.CylinderGeometry(.172, .172, .04, 16), mk('accent', P.accent), 0, 1.1, 0, .006);
   }
   // ---- torso armour ----
   if (R.torso === 'do' || R.torso === 'heavy'){
-    const lacquer = mk('metalD', P.metal, ds), lace = mk('lace', P.lace), heavy = R.torso === 'heavy', n = heavy ? 5 : 3;
-    for (let i=0;i<n;i++){
-      const y0 = .24 + i*(heavy ? .085 : .1);
-      const b = add(new THREE.CylinderGeometry(.325*bk + i*.004, .318*bk + i*.004, heavy ? .08 : .09, 16, 1, true), lacquer, 0, y0, 0, .012); b.scale.z = .88;
-      const l = add(new THREE.CylinderGeometry(.328*bk + i*.004, .328*bk + i*.004, .012, 16, 1, true), lace, 0, y0 - .045, 0, 0); l.scale.z = .88;
-    }
+    const heavy = R.torso === 'heavy', lacC = new THREE.Color(P.metal).lerp(new THREE.Color(P.dark), heavy ? .35 : .5).getHex();
+    const lacquer = mk('cuirass', lacC), lace = mk('lace', P.lace);
+    // the dō: a sculpted chest, deeper at the sternum, hung from the shoulders by two straps
+    const cu = add(lathe([[.29*bk, .17], [.33*bk, .26], [.345*bk, .42], [.34*bk, .56], [.3*bk, .66], [.2*bk, .72]], 18), lacquer, 0, 0, 0, .014); cu.scale.z = .86;
+    const rows = heavy ? 5 : 3;
+    for (let i=0;i<rows;i++){ const y = .22 + i*(heavy ? .09 : .13), r = .346*bk + (i < 2 ? .004 : i === rows - 1 ? -.02 : 0);
+      const l = add(new THREE.CylinderGeometry(r, r, .014, 18, 1, true), lace, 0, y, 0, 0); l.scale.z = .86; }
+    for (const sx of [-1, 1]) add(new THREE.BoxGeometry(.07, .2, .03), mk('strap', P.dark), .13*sx, .74, -.2, .006).rotation.x = .5;
+    // the muna-ita across the top of the chest, and the fastening
+    add(new THREE.CylinderGeometry(.305*bk, .305*bk, .035, 18, 1, true, Math.PI - 1.1, 2.2), mk('metal', P.metal), 0, .67, 0, .008).scale.z = .86;
+    if (heavy) add(new THREE.SphereGeometry(.03, 8, 6), mk('accent', P.accent), 0, .52, -.3*bk, .004);
   }
   // ---- shoulders ----
   if (R.shoulders === 'light' || R.shoulders === 'heavy'){
-    const lacquer = mk('metal', P.metal), lace = mk('lace', P.lace), hv = R.shoulders === 'heavy';
-    const sodeN = hv ? 4 : 2, sw = hv ? .3 : .22;
+    const hv = R.shoulders === 'heavy', lacC = new THREE.Color(P.metal).lerp(new THREE.Color(P.dark), hv ? .35 : .5).getHex();
+    const lacquer = mk('sode', lacC, ds), lace = mk('lace', P.lace);
+    const rowsN = hv ? 4 : 3, rh = hv ? .07 : .055, r0 = hv ? .13 : .105;
     for (const sx of [-1, 1]){
-      const grp = new THREE.Group(); grp.position.set(.34*sx*bk, .7, 0); grp.rotation.z = -.35*sx; g.add(grp);
-      for (let i=0;i<sodeN;i++){ add(new THREE.BoxGeometry(sw*.5 + i*.012, .075, sw), lacquer, .02*sx, -i*.08, 0, .012, grp); add(new THREE.BoxGeometry(sw*.5 + i*.012 + .004, .012, sw + .004), lace, .02*sx, -i*.08 - .038, 0, 0, grp); }
+      // the sode is a curved plate draped over the shoulder, tipped outward, its lacing rows sloping down the arm
+      const grp = new THREE.Group(); grp.position.set(.29*sx*bk, .72, -.01); grp.rotation.z = -.62*sx; g.add(grp);
+      for (let i=0;i<rowsN;i++){ const r = r0 + i*.02;
+        add(new THREE.CylinderGeometry(r, r + .02, rh, 12, 1, true, Math.PI*(sx > 0 ? .2 : 1.2), Math.PI*.6), lacquer, 0, -i*rh*.92, 0, .012, grp);
+        add(new THREE.CylinderGeometry(r + .022, r + .022, .012, 12, 1, true, Math.PI*(sx > 0 ? .2 : 1.2), Math.PI*.6), lace, 0, -i*rh*.92 - rh*.42, 0, 0, grp); }
+      add(new THREE.SphereGeometry(r0 - .005, 10, 6, 0, TAU, 0, Math.PI*.5), lacquer, 0, .01, 0, .01, grp);
     }
   } else if (R.shoulders === 'fur'){
     const fur = mk('fur', 0x8F877A);
@@ -3282,7 +3327,12 @@ function dress(f){
     if (R.feet === 'geta'){ const wood = mk('wood', 0x5E503F); add(new THREE.BoxGeometry(.14, .03, .3), wood, 0, -.935 + K, -.05, .008, kn); for (const z of [-.14, .04]) add(new THREE.BoxGeometry(.14, .04, .035), wood, 0, -.965 + K, z, .006, kn); }
     if (R.feet === 'boots') add(new THREE.CylinderGeometry(.09, .085, .38, 8), mk('felt', P.dark), 0, -.68 + K, 0, .014, kn);
     if (R.feet === 'suneate'){ add(new THREE.BoxGeometry(.16, .32, .04), mk('metal', P.metal), 0, -.66 + K, -.075, .01, kn); for (let k=0;k<3;k++) add(new THREE.BoxGeometry(.165, .012, .045), mk('lace', P.lace), 0, -.55 - k*.1 + K, -.075, 0, kn); }
-    if (R.legs === 'pants' && R.feet !== 'boots' && R.feet !== 'suneate') add(new THREE.CylinderGeometry(.088, .082, .3, 8), mk('wrap', 0xD8CFBD), 0, -.7 + K, 0, .01, kn);
+    if (R.legs === 'pants'){
+      // loose trousers gathered at the shin
+      add(new THREE.CylinderGeometry(.115, .1, .46, 9), mk('pants', P.hakama), 0, -.215, 0, .012, v.hips[i]);
+      add(new THREE.CylinderGeometry(.1, .085, .3, 9), mk('pants', P.hakama), 0, -.15, 0, .012, kn);
+      if (R.feet !== 'boots' && R.feet !== 'suneate') add(new THREE.CylinderGeometry(.088, .08, .26, 8), mk('wrap', 0xD8CFBD), 0, -.72 + K, 0, .01, kn);
+    }
   });
   // ---- back: a banner on a pole ----
   if (R.back === 'banner'){
@@ -6629,9 +6679,11 @@ const camTarget = new THREE.Vector3(), lookTarget = new THREE.Vector3();
 function updateCamera(rdt, now){
   if (CUST.on && G.phase === 'menu'){
     // the workshop: face to face with your duelist, set to the right of the panel
-    const F = dirTo(you, foe), Rt = { x:-F.z, z:F.x };
-    camTarget.set(you.pos.x + F.x*4.1 - Rt.x*.3, 1.55, you.pos.z + F.z*4.1 - Rt.z*.3);
-    lookTarget.set(you.pos.x + Rt.x*CUST_SIDE, 1.12, you.pos.z + Rt.z*CUST_SIDE);
+    const F = { x:-Math.sin(you.yaw), z:-Math.cos(you.yaw) }, Rt = { x:-F.z, z:F.x };
+    camTarget.set(you.pos.x + F.x*3.4 - Rt.x*.2, 1.42 + Math.sin(now*.0005)*.02, you.pos.z + F.z*3.4 - Rt.z*.2);
+    lookTarget.set(you.pos.x + Rt.x*CUST_SIDE, 1.0, you.pos.z + Rt.z*CUST_SIDE);
+    // the workshop is lit from the front, so the face and the cloth read whatever the arena's sun is doing
+    custLight.position.set(you.pos.x + F.x*2.2 - Rt.x*1.2, 2.6, you.pos.z + F.z*2.2 - Rt.z*1.2); custLight.intensity = .55;
   } else if (G.phase === 'menu' && MENU.scr === 'title'){
     // the hero shot: low, three-quarter, your duelist on the right third of the frame, breathing slowly
     const sw = Math.sin(now*.00035), F = dirTo(you, foe);
@@ -7357,7 +7409,8 @@ function dojoPauseRender(){
 }
 
 /* ================= menu + tuning UI ================= */
-const CUST_SIDE = 1.05;
+const CUST_SIDE = .78;
+const custLight = new THREE.PointLight(0xFFF2DC, 0, 9, 1.6); scene.add(custLight);
 /* ---- the character workshop: a panel on the left, the duelist large on the right, drag to turn them ---- */
 const CUST = { on:false, yaw:.5, drag:null };
 const custEl = $('#custom');
@@ -7379,11 +7432,11 @@ function custRender(){
 }
 function custApply(){ S.look = cleanLook(S.look); save(); you.lookCfg = S.look; setWeapon(you, S.pw); custRender(); }
 function custOpen(){
-  CUST.on = true; CUST.yaw = .5; $('#menu').hidden = true; custEl.hidden = false;
-  resetFighter(you, 0, 2.6); resetFighter(foe, 0, -2.6);
+  CUST.on = true; CUST.yaw = .45; $('#menu').hidden = true; custEl.hidden = false;
+  resetFighter(you, 0, 2.6); resetFighter(foe, 0, -2.6); you.yaw = Math.atan2(-(foe.pos.x - you.pos.x), -(foe.pos.z - you.pos.z));
   you.lookCfg = S.look; setWeapon(you, S.pw); custRender();
 }
-function custClose(){ CUST.on = false; custEl.hidden = true; $('#menu').hidden = false; menuShow('title'); }
+function custClose(){ CUST.on = false; custLight.intensity = 0; custEl.hidden = true; $('#menu').hidden = false; menuShow('title'); }
 $('#custBtn').addEventListener('click', custOpen);
 $('#dojoBtn').addEventListener('click', () => { Sfx.init(); const done = S.dojoDone || []; let i = DOJO_LESSONS.findIndex((_, k) => !done.includes(k)); dojoStart(i < 0 ? -1 : i); });
 $('#dojoPause').addEventListener('click', e => {
