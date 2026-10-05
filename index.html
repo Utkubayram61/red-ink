@@ -3902,8 +3902,10 @@ function canCounter(f){
 }
 function tryParry(f, angle){
   const counter = !canAct(f) && canCounter(f);
-  if (!canAct(f) && !counter) return false;
+  const desperate = f.state === 'broken' && f.t >= 90 && f.breath >= 8;
+  if (!canAct(f) && !counter && !desperate) return false;
   if (counter) spend(f, 6);
+  if (desperate){ spend(f, 8); f.posture = 30; if (fight() && f.isPlayer) setTiming('<b class="mid">DESPERATE GUARD</b>a parry out of the break · the opening stays until it would have passed'); }
   f.counterParry = counter;
   f.parryAngle = wrap(angle); f.parryPressT = T;
   f.sweep = [{ t:T, a:f.parryAngle }];
@@ -4042,13 +4044,13 @@ function addPosture(f, amt){
   if (f.state === 'dead' || f.state === 'broken') return;
   f.posture = Math.min(100, f.posture + amt); f.lastPostureT = T;
   if (f.posture >= 100){
-    enter(f, 'broken', 1300); f.brokenVuln = true; shake(.3); f.flash = 1; Sfx.voice(f, 'hurtH', .9);
+    enter(f, 'broken', 720); f.brokenVuln = true; f.brokenUntil = T + 720; shake(.3); f.flash = 1; Sfx.voice(f, 'hurtH', .9);
     groundShock(f.pos.x, f.pos.z, RED, 3.2, 600); groundShock(f.pos.x, f.pos.z, INK, 1.8, 400);
     dustFx(f.pos.x, f.pos.z, 8, .5); streaks(_v.set(f.pos.x, 1.4, f.pos.z), INK, 30, 6, 2);
     flashLight.position.set(f.pos.x, 1.6, f.pos.z); flashLight.color.setHex(0xFFFFFF); flashLevel = 3;
     Sfx.gong(panOf(f)); fovKick = Math.max(fovKick, 2.5);
     if (fight() && !f.isPlayer) kanji('崩', { size:.24, vertical:false, x:.82, y:.42 });
-    if (fight()) callout(f.isPlayer ? 'Guard broken' : 'Guard broken', f.isPlayer ? 'bad' : 'ember', f.isPlayer ? 'the next blow deals x1.8' : 'strike now · x1.8 damage');
+    if (fight()) callout('Guard broken', f.isPlayer ? 'bad' : 'ember', f.isPlayer ? 'the next blow deals x1.8 · you can still parry' : 'strike now · x1.8 damage');
   }
 }
 function contactPoint(a, b, frac){
@@ -4107,7 +4109,8 @@ function hit(a, b, over){
   if (caughtLow) dmg *= 1.25;
   let broke = false;
   if (atk.riposte) dmg *= a.w.riposteMul;
-  if (b.brokenVuln){ dmg *= 1.8; b.brokenVuln = false; broke = true; }
+  if (b.brokenVuln && T < (b.brokenUntil || 0) + 60){ dmg *= 1.8; broke = true; }
+  if (b.brokenVuln && b.state !== 'broken') b.brokenVuln = false;
   const hyper = (b.state === 'windup' || b.state === 'active' || b.state === 'hold') && b.atk && b.atk.heavy && b.w.hyper;
   const interrupted = (b.state === 'windup' || b.state === 'hold') && !hyper;
   if (interrupted && b.state === 'hold' && b.atk && b.atk.heavy && fight() && b.isPlayer && ARTS[b.wkey]) setTiming('<b class="bad">ART BROKEN</b>you were hit while charging · charge out of reach');
@@ -5112,7 +5115,7 @@ function resolveArt(a, b, sp){
     if (angOk){
       if (perfect && sp.parry !== 'crush'){ artParried(a, b); return 'parried'; }
       if (sp.parry === 'block'){ artBlocked(a, b, sp); return 'blocked'; }
-      if (sp.parry === 'break'){ artHit(a, b, sp, .5); if (b.state !== 'dead' && b.hp > 0){ b.posture = 100; b.lastPostureT = T; enter(b, 'broken', 1150); b.brokenVuln = true; groundShock(b.pos.x, b.pos.z, RED, 3, 520); Sfx.gong(panOf(b)); if (fight()) callout('Guard broken', b.isPlayer ? 'bad' : 'ember', 'a normal parry cannot hold this'); } return 'broke'; }
+      if (sp.parry === 'break'){ artHit(a, b, sp, .5); if (b.state !== 'dead' && b.hp > 0){ b.posture = 100; b.lastPostureT = T; enter(b, 'broken', 680); b.brokenVuln = true; b.brokenUntil = T + 680; groundShock(b.pos.x, b.pos.z, RED, 3, 520); Sfx.gong(panOf(b)); if (fight()) callout('Guard broken', b.isPlayer ? 'bad' : 'ember', 'a normal parry cannot hold this'); } return 'broke'; }
       if (sp.parry === 'crush'){ artHit(a, b, sp, .6); if (b.hp > 0) addPosture(b, 38); if (fight() && b.isPlayer) setTiming('<b class="bad">CRUSHED</b>this cannot be parried · jump, roll or dash'); return 'crushed'; }
       if (fight() && b.isPlayer) setTiming(`<b class="bad">NOT ENOUGH</b>only a perfect parry stops the ${ARTS[a.wkey] ? ARTS[a.wkey].name : 'art'}`);
     }
@@ -5803,7 +5806,9 @@ function botThink(b, br, D){
   if (br.seenAtk && !br.decided && T - br.seenT >= (D.react*GAME_SPEED)){
     br.decided = true;
     const atk = br.seenAtk;
-    if (p.state === 'windup' && p.atk === atk && !atk.feinted && b.state === 'idle' && d <= p.w.reach + 1){
+    if (p.state === 'windup' && p.atk === atk && !atk.feinted && b.state === 'broken' && b.t >= 90 && d <= p.w.reach + 1 && Math.random() < D.parry*.5 && !(b.w.noHeavyParry && atk.heavy)){
+      br.plan = { type:'parry', at: T + Math.max(0, p.dur - p.t - WIN()*rand(.3, .7) + rand(-1,1)*D.timeNoise), angle:wrap(mirror(atk.angle) + rand(-1,1)*D.angNoise*DEG), atk };
+    } else if (p.state === 'windup' && p.atk === atk && !atk.feinted && b.state === 'idle' && d <= p.w.reach + 1){
       const remaining = p.dur - p.t, r = Math.random();
       const canParry = !(b.w.noHeavyParry && atk.heavy) && !atk.flank;
       const inRally = T - G.lastClashT < 1600;
@@ -6005,6 +6010,7 @@ function update(dt){
   for (const f of SIMF){
     arenaClamp(f);
     if (f.state !== 'broken' && f.state !== 'dead' && T - f.lastPostureT > 1100) f.posture = Math.max(0, f.posture - (f.state === 'idle' ? 24 : 10)*s);
+    if (f.brokenVuln && f.state !== 'broken' && T >= (f.brokenUntil || 0)) f.brokenVuln = false;
     if (f.lagHold > 0) f.lagHold -= dt; else f.hpLag = Math.max(f.hp, f.hpLag - 90*s);
   }
 }
