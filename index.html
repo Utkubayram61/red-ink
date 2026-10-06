@@ -597,6 +597,7 @@ details.ctrls[open] summary::before{content:"– "}
           <kbd>1</kbd><span>Gunsmoke: draw the pistol · click to fire, hold right-click to aim (the reticle steadies), the mouse moves the aim</span>
           <kbd>2</kbd><span>Gunsmoke: back to the blade · a parry turns a bullet aside, a perfect one sends it back</span>
           <kbd>F</kbd><span>Gunsmoke: dive (Max Payne style) toward the keys you hold · you can fire in the air</span>
+          <kbd>Wheel</kbd><span>Gunsmoke: slip a bullet · a quick sidestep the shot passes through (up left, down right; A/D choose)</span>
           <kbd>Wheel</kbd><span>Twirl your sword</span>
           <kbd>G · Esc</kbd><span>Attack indicator · pause</span>
         </div>
@@ -687,7 +688,7 @@ function rollCurve(t){
 const DASH_DUR=170, DASH_SPEED=12, DASH_CD=420;
 const CONTACT = .38;
 const SPEED=4.6, ARENA_R=10.2, HEAVY_HOLD=260, DRAG_MIN=14, STICK_R=36, AIM_GAIN=1.5;
-const STATE_TR = { flip:'flip', throw:'shuriken', art:'art', artRecover:'after art', qte:'clash', fin:'final blow', finVictim:'final blow', idle:'ready', windup:'windup', active:'strike', recovery:'recovery', parry:'parry', parryRecover:'parry penalty', stagger:'staggered', hitstun:'hit', broken:'guard broken', dash:'dash', roll:'roll', feintRecover:'feint', dead:'down', deflect:'deflected', bind:'locked', crouch:'crouch', crouchUp:'rising', spin:'spin', spinRecover:'after spin', jump:'airborne', land:'landing', hold:'holding' };
+const STATE_TR = { flip:'flip', throw:'shuriken', art:'art', artRecover:'after art', qte:'clash', fin:'final blow', finVictim:'final blow', idle:'ready', windup:'windup', active:'strike', recovery:'recovery', parry:'parry', parryRecover:'parry penalty', stagger:'staggered', hitstun:'hit', broken:'guard broken', dash:'dash', slip:'slip', dive:'dive', swap:'switching', roll:'roll', feintRecover:'feint', dead:'down', deflect:'deflected', bind:'locked', crouch:'crouch', crouchUp:'rising', spin:'spin', spinRecover:'after spin', jump:'airborne', land:'landing', hold:'holding' };
 const VULN = new Set(['parryRecover','stagger','broken','feintRecover','recovery','spinRecover','land','artRecover']);
 
 /* ================= settings ================= */
@@ -3785,7 +3786,7 @@ function resetFighter(f, x, z){
   f.inj = { arm:0, leg:0, bleed:0, bleedUntil:0 }; f.bladeBlood = 0; f.blindUntil = 0; f.counterParry = false; f.art = null; f.artY = 0; f.artVy = 0; f.sheathClick = 0; f.shuri = SHURI_N; f.throwReady = 0; f.throwDone = true;
   f.guardAngle = f.isPlayer ? .35 : 2.8; f.buf = null; f.qIdx = 0; f.qLock = 0; f.bindPush = 0;
   f.gun = 'blade'; f.ammo = GUN.mag; f.fireReady = 0; f.reloading = false; f.reloadUntil = 0; f.holsterT = 0; f.aiming = false; f.aimT = -1e9; f.aimX = 0; f.aimY = .25;
-  f.shotN = 0; f.diveDir = { x:0, z:1 }; f.diveReady = 0;
+  f.shotN = 0; f.diveDir = { x:0, z:1 }; f.diveReady = 0; f.slipReady = 0;
   if (G.gun) f.shuri = 0;
 }
 
@@ -5527,6 +5528,22 @@ function throwArm(f, u){
    pistol keeps working in the air. Everything here is simulation, so it runs the same on both machines online. */
 const GUN = { mag:6, rof:280, reload:1300, holsterFill:1500, speed:34, range:26, dmgB:11, dmgH:19, swap:240, dive:980, diveCd:1250, diveSpeed:7.4, diveCost:14 };
 const DIVE_UP = 90, DIVE_LAND = 560, DIVE_SLIDE = 780;
+/* the slip (mouse wheel): a short, sharp sidestep. For its first SLIP.iframe ms a bullet passes straight through,
+   so it is timed off the muzzle flash or the red line of a held aim; it also carries the body about 1.4 m off the line. */
+const SLIP = { dur:240, iframe:190, cd:520, cost:5, speed:9.2 };
+function trySlip(f, side){
+  if (!G.gun || !canAct(f) || T < (f.slipReady || 0) || !spend(f, SLIP.cost, true)) return false;
+  const fw = dirTo(f, f.opp), sg = side < 0 ? -1 : 1;
+  f.dir = { x:-fw.z*sg, z:fw.x*sg }; f.vel.x = f.vel.z = 0; f.slipReady = T + SLIP.cd;
+  enter(f, 'slip', SLIP.dur);
+  dustFx(f.pos.x - f.dir.x*.2, f.pos.z - f.dir.z*.2, 4, .12, -f.dir.x, -f.dir.z, 1.3); Sfx.dash(panOf(f));
+  return true;
+}
+function slipStep(f, dt){
+  const s = dt/1000, u = f.t/f.dur, prof = u < .18 ? lerp(.5, 1, u/.18) : lerp(1, .15, (u - .18)/.82);
+  f.pos.x += f.dir.x*SLIP.speed*prof*s; f.pos.z += f.dir.z*SLIP.speed*prof*s;
+  if (f.t >= f.dur){ f.vel.x = f.dir.x*1.2; f.vel.z = f.dir.z*1.2; scuffFx(f.pos.x, f.pos.z, f.dir.x, f.dir.z, .6); enter(f, 'idle'); }
+}
 function trySwap(f, to){
   if (!G.gun || f.gun === to || !canAct(f)) return false;
   f.gun = to; f.aiming = false;
@@ -5536,7 +5553,7 @@ function trySwap(f, to){
   return true;
 }
 function canShoot(f){
-  return G.gun && f.gun === 'pistol' && (canAct(f) || (f.state === 'dive' && f.t > DIVE_UP - 20 && f.t < DIVE_SLIDE + 60) || (f.state === 'flip' && f.t > FLIP_UP && f.t < FLIP_DOWN) || f.state === 'jump');
+  return G.gun && f.gun === 'pistol' && (canAct(f) || (f.state === 'slip' && f.t > 40) || (f.state === 'dive' && f.t > DIVE_UP - 20 && f.t < DIVE_SLIDE + 60) || (f.state === 'flip' && f.t > FLIP_UP && f.t < FLIP_DOWN) || f.state === 'jump');
 }
 function startReload(f){
   if (f.reloading || f.ammo >= GUN.mag) return;
@@ -5571,6 +5588,7 @@ function gunSpread(f){
   const steady = f.aiming ? clamp((T - f.aimT)/450, 0, 1) : 0;
   let s = f.aiming ? lerp(3.6, .55, steady) : 5.2;
   if (f.state === 'dive') s = Math.min(s, 2.2);
+  else if (f.state === 'slip') s += 1.2;
   else s += 2.4*Math.min(1, Math.hypot(f.vel.x, f.vel.z)/SPEED);
   if (f.state === 'crouch') s *= .75;
   if (f.state === 'flip' || f.air) s += 2;
@@ -5618,8 +5636,14 @@ function stepBullet(p, i, dt){
   if (p.t > GUN.range/GUN.speed*1000 || Math.hypot(p.x, p.z) > ARENA.r + 8) G.proj.splice(i, 1);
 }
 function bulletMeets(p, a, b, part){
-  const through = (b.state === 'roll' && b.t >= ROLL_IF0 && b.t <= ROLL_IF1) || (b.state === 'flip' && b.t >= FLIP_IF0 && b.t <= FLIP_IF1);
-  if (through){ p.passed = true; if (fight() && b.isPlayer) callout('Dodged', 'good', 'the shot found nothing'); return 'keep'; }
+  const slipped = b.state === 'slip' && b.t <= SLIP.iframe;
+  const through = slipped || (b.state === 'dash' && b.t <= 110) || (b.state === 'roll' && b.t >= ROLL_IF0 && b.t <= ROLL_IF1) || (b.state === 'flip' && b.t >= FLIP_IF0 && b.t <= FLIP_IF1);
+  if (through){
+    p.passed = true;
+    if (slipped){ b.slipN = (b.slipN || 0) + 1; streaks(new THREE.Vector3(p.x, p.y, p.z), 0xFFE9B0, 5, 3, .25); }
+    if (fight()){ if (b.isPlayer) callout(slipped ? 'Slipped' : 'Dodged', 'good', 'the shot found nothing'); else if (a.isPlayer && slipped) callout('Slipped', 'bad', 'they stepped out of it'); }
+    return 'keep';
+  }
   if (b.state === 'parry' && b.gun !== 'pistol'){
     const perfect = parryPerfect(b), dir = dirTo(b, a), sx = b.pos.x + dir.x*.55, sz = b.pos.z + dir.z*.55, sy = clamp(p.y, .9, 1.6);
     const cp = new THREE.Vector3(sx, sy, sz);
@@ -5683,9 +5707,14 @@ function gunBot(b, br, D){
     br.seenB.add(key);
     const eta = Math.max(0, (Math.hypot(b.pos.x - pr.x, b.pos.z - pr.z) - .4)/GUN.speed*1000), r = Math.random();
     if (b.gun === 'blade' && canAct(b) && r < D.parry*.55) br.bParryAt = T + Math.max(0, eta - WIN()*rand(.35, .8));
-    else if (canAct(b) && r < D.dodge*1.6 + (b.gun === 'pistol' ? .12 : 0)){ const sg = Math.random() < .5 ? 1 : -1; tryDive(b, { x:rt.x*sg, z:rt.z*sg }); }
+    else if (canAct(b) && r < D.dodge*1.6 + (b.gun === 'pistol' ? .12 : 0)){
+      // mostly a slip timed to the shot; sometimes the full dive
+      if (Math.random() < .65){ br.slipAt = T + Math.max(0, eta - rand(40, 170)); br.slipSide = Math.random() < .5 ? 1 : -1; }
+      else { const sg = Math.random() < .5 ? 1 : -1; tryDive(b, { x:rt.x*sg, z:rt.z*sg }); }
+    }
   }
   if (br.bParryAt && T >= br.bParryAt){ br.bParryAt = 0; if (b.gun === 'blade') tryParry(b, b.guardAngle); }
+  if (br.slipAt && T >= br.slipAt){ br.slipAt = 0; trySlip(b, br.slipSide); }
   let want = d > b.w.reach + (b.gun === 'pistol' ? 1.2 : 2.6) ? 'pistol' : 'blade';
   if (want === 'pistol' && b.reloading && d < 6.5) want = 'blade';
   if (want !== b.gun && canAct(b) && T > (br.swapAt || 0) && trySwap(b, want)){ br.swapAt = T + 650; b.moveIn.x = b.moveIn.z = 0; return true; }
@@ -5900,6 +5929,7 @@ function stepFighter(f, dt){
     case 'art': artStep(f, dt); break;
     case 'throw': throwStep(f); break;
     case 'dive': diveStep(f, dt); break;
+    case 'slip': slipStep(f, dt); break;
     case 'swap': if (f.t >= f.dur) enter(f, 'idle'); break;
     case 'artRecover':
       if (f.sheathClick && T >= f.sheathClick){ f.sheathClick = 0; Sfx.clink(panOf(f)); }
@@ -5945,6 +5975,7 @@ function playerControl(p){
     if (e === 'R' && G.gun && p.gun === 'pistol') continue;
     if (e === 'P1' || e === 'P2'){ if (G.gun) p.buf = { type:'swap', to:e === 'P1' ? 'pistol' : 'blade', t:T }; continue; }
     if (e === 'DV'){ if (G.gun) p.buf = { type:'dive', t:T }; continue; }
+    if ((e === 'W+' || e === 'W-') && G.gun){ p.buf = { type:'slip', side:e === 'W+' ? -1 : 1, t:T }; continue; }
     if (e === 'L'){
       if (p.state === 'flip' && p.flip){ p.flip.cut = true; p.flip.ang = c.g; continue; }
       if (p.state === 'bind'){ p.bindPush = (p.bindPush || 0) + .07; continue; }
@@ -6002,6 +6033,7 @@ function playerControl(p){
     case 'fire': ok = tryFire(p); break;
     case 'swap': ok = trySwap(p, b.to); break;
     case 'dive': ok = tryDive(p, l > .1 ? norm(vx, vz) : rt); break;
+    case 'slip': ok = trySlip(p, c.mx ? c.mx : b.side); break;
   }
   if (ok) p.buf = null;
 }
@@ -6423,6 +6455,7 @@ function poseFighter(f, dt, now){
   switch (f.state){
     case 'idle': if (T < f.riposteUntil){ glow = GOLD; glowAmt = .5 + .25*Math.sin(now*.02); } break;
     case 'dash': drop = .22; phi = 30*DEG; fast = true; if (T < f.riposteUntil){ glow = GOLD; glowAmt = .6; } break;
+    case 'slip': drop = .2*Math.sin(Math.PI*Math.min(1, f.t/f.dur)); fast = true; break;
     case 'roll': alpha = -95*DEG; phi = 5*DEG; fast = true; break;
     case 'flip': {
       // the blade rides out wide through the air, trailing the turn; tucked for the crouch and the landing
@@ -6682,12 +6715,16 @@ function poseFighter(f, dt, now){
     f.pvx = f.vel.x; f.pvz = f.vel.z;
     // lean into acceleration, and a little into speed itself, the way a runner carries the body ahead of the feet
     let gx = clamp(toLx(ax, az)*7 + toLx(f.vel.x, f.vel.z)*.028, -.3, .3), gz = clamp(toLz(ax, az)*7 + toLz(f.vel.x, f.vel.z)*.028, -.3, .3);
-    if (f.state === 'dash'){
+    if (f.state === 'slip'){
+      // the shoulders go first, the feet catch up
+      const u2 = clamp(f.t/f.dur, 0, 1), m = u2 < .3 ? lerp(.2, .48, u2/.3) : lerp(.48, .05, (u2 - .3)/.7);
+      gx = toLx(f.dir.x, f.dir.z)*m; gz = toLz(f.dir.x, f.dir.z)*m;
+    } else if (f.state === 'dash'){
       // throw the body into the direction of travel, harder once at speed
       const u2 = clamp(f.t/f.dur, 0, 1), m = u2 < .25 ? lerp(.18, .42, u2/.25) : lerp(.42, .3, (u2 - .25)/.75);
       gx = toLx(f.dir.x, f.dir.z)*m; gz = toLz(f.dir.x, f.dir.z)*m;
     }
-    const kt = 1 - Math.exp(-dt*(f.state === 'dash' ? .03 : .011));
+    const kt = 1 - Math.exp(-dt*(f.state === 'dash' || f.state === 'slip' ? .03 : .011));
     P.tx = lerp(P.tx, gx, kt); P.tz = lerp(P.tz, gz, kt);
   }
   let legTuck = 0, legDrop = P.drop, legSplit = 0;
@@ -6696,6 +6733,7 @@ function poseFighter(f, dt, now){
   {
     let sm = 0, sdx = f.dir ? f.dir.x : 0, sdz = f.dir ? f.dir.z : 0;
     if (f.state === 'dash') sm = f.t < 110 ? 1 - f.t/110 : 0;
+    else if (f.state === 'slip') sm = f.t < 120 ? .85*(1 - f.t/120) : 0;
     else if (f.state === 'art' && f.wkey === 'katana' && f.art && f.t > 170 && f.t < 330){ sm = 1 - Math.abs(f.t - 230)/100; sdx = f.art.dir.x; sdz = f.art.dir.z; }
     else if (f.state === 'flip' && f.flip && f.t > FLIP_UP && f.t < FLIP_UP + 110){ sm = 1 - (f.t - FLIP_UP)/110; sdx = f.dir.x; sdz = f.dir.z; }
     if (sm > 0 && !reduceMotion){
@@ -6761,7 +6799,7 @@ function poseFighter(f, dt, now){
     const tl = Math.hypot(P.tx, P.tz);
     if (tl > 1e-4){ _q2.setFromAxisAngle(_axis.set(P.tz, 0, -P.tx).normalize(), tl); v.body.quaternion.copy(_q2).multiply(_q1); }
     else v.body.quaternion.copy(_q1);
-    const stride = Math.min(1, Math.hypot(f.vel.x, f.vel.z)/2.6)*(f.state === 'dash' ? 0 : 1);
+    const stride = Math.min(1, Math.hypot(f.vel.x, f.vel.z)/2.6)*(f.state === 'dash' || f.state === 'slip' ? 0 : 1);
     const GT = gaitOf(f);
     v.body.position.y = 1 - P.drop - GT.low - .045*GT.bob*stride*Math.abs(Math.sin(f.walk)) - .03*stride + Math.sin(now*(winded(f) ? .011 : .004) + (f.isPlayer ? 0 : 2))*(winded(f) ? .028 : .01);
     if (stride > .05 && !f.air){ v.body.rotateZ(Math.sin(f.walk)*.045*stride*GT.sway); v.body.rotateY(-Math.sin(f.walk)*.07*stride*GT.sway); }
@@ -6776,6 +6814,7 @@ function poseFighter(f, dt, now){
     const su = f.state === 'spin' ? f.t/SPIN_DUR : -1;
     v.spinW = lerp(v.spinW || 0, su >= 0 ? clamp(Math.abs(spinCurve(su + .02) - spinCurve(su - .02))/.04/4.4, 0, 1) : 0, 1 - Math.exp(-dt*.012));
     if (f.state === 'dash') legSplit = .75*Math.min(1, f.t/50);
+    else if (f.state === 'slip') legSplit = .5*Math.sin(Math.PI*Math.min(1, f.t/f.dur));
     if (f.state === 'hitstun' && (f.hitKind === 'heavy' || f.hitKind === 'pull')) legSplit = Math.max(legSplit, .55*(1 - smooth(u)));
     // up on the ball of the foot through the turn, legs gathered under the hips instead of split
     if (f.state === 'spin') legTuck = Math.max(legTuck, .13*Math.sin(Math.PI*u));
@@ -6795,7 +6834,7 @@ function poseFighter(f, dt, now){
     if (ARENA.key === 'kar') footprint(_tmp.x, _tmp.z, f.yaw);
     else if (WX.mode === 'rain') { splash(_tmp.x, _tmp.z); splash(_tmp.x + rand(-.1, .1), _tmp.z + rand(-.1, .1)); }
   }
-  const amp = Math.min(1, spd/3)*.62*(f.state === 'dash' ? 0 : 1)*GT.amp;
+  const amp = Math.min(1, spd/3)*.62*(f.state === 'dash' || f.state === 'slip' ? 0 : 1)*GT.amp;
   // which way the feet are going, in the body's frame: forward steps swing the legs, side steps swing them out and across
   const lvx = spd > .05 ? toLx(f.vel.x, f.vel.z)/spd : 0, lvz = spd > .05 ? toLz(f.vel.x, f.vel.z)/spd : 1;
   const fwdS = Math.abs(lvz), sideS = lvx;
@@ -7146,7 +7185,7 @@ function updateCamera(rdt, now){
     }
   }
   if (G.phase !== 'intro') camShot = '';
-  const k = 1 - Math.exp(-rdt*(G.qte ? .02 : G.phase === 'finisher' ? .006 : G.phase === 'intro' ? (G.cine && G.cine.long && G.phaseT < CINE_LONG.draw ? .02 : .0045) : ((you.state === 'roll' || you.state === 'dash' || you.state === 'flip') && G.phase !== 'menu' ? .0045 : .009)));
+  const k = 1 - Math.exp(-rdt*(G.qte ? .02 : G.phase === 'finisher' ? .006 : G.phase === 'intro' ? (G.cine && G.cine.long && G.phaseT < CINE_LONG.draw ? .02 : .0045) : ((you.state === 'roll' || you.state === 'dash' || you.state === 'slip' || you.state === 'flip') && G.phase !== 'menu' ? .0045 : .009)));
   camera.position.lerp(camTarget, k); camLook.lerp(lookTarget, 1 - Math.exp(-rdt*.01));
   if (shakeAmp > .001){
     camera.position.x += (Math.random()-.5)*shakeAmp*.5; camera.position.y += (Math.random()-.5)*shakeAmp*.4;
@@ -7416,7 +7455,7 @@ function startMatch(opts){
   you.wins = foe.wins = 0; you.stats = makeStats(); foe.stats = makeStats();
   clearDecals();
   G.round = 1; startRound();
-  timingEl.innerHTML = G.gun ? '<b class="mid">GUNSMOKE</b>1 pistol · 2 blade · hold right-click to aim, click to fire · F dives toward the keys you hold' : TIP_DEFAULT;
+  timingEl.innerHTML = G.gun ? '<b class="mid">GUNSMOKE</b>1 pistol · 2 blade · right-click aims, click fires · wheel slips a bullet · F dives' : TIP_DEFAULT;
 }
 /* ---- cinematic opening ----
    Round 1 is a scene: a slow crane over the place they chose, its name brushed on screen, the two walking in from far
