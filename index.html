@@ -503,6 +503,7 @@ details.ctrls[open] summary::before{content:"– "}
         <div class="title"><h1>Red<span class="thin">Ink</span></h1><div class="seal" aria-hidden="true">steel<br>&amp;<br>ink</div></div>
         <nav class="mlist" id="mlist" aria-label="Main menu">
           <button type="button" class="mi" data-go="select"><span class="mk" aria-hidden="true">対</span><span class="ml">Versus</span><span class="ms">duel the bot</span></button>
+          <button type="button" class="mi" data-go="select" data-mode="gun"><span class="mk" aria-hidden="true">銃</span><span class="ml">Gunsmoke</span><span class="ms">blade and pistol</span></button>
           <button type="button" class="mi" data-go="online"><span class="mk" aria-hidden="true">縁</span><span class="ml">Online</span><span class="ms">a friend · a room code</span></button>
           <button type="button" class="mi" id="dojoBtn"><span class="mk" aria-hidden="true">道</span><span class="ml">Dojo</span><span class="ms">learn the blade</span></button>
           <button type="button" class="mi" id="custBtn"><span class="mk" aria-hidden="true">姿</span><span class="ml">Character</span><span class="ms">your look</span></button>
@@ -542,6 +543,7 @@ details.ctrls[open] summary::before{content:"– "}
           <input id="joinCode" maxlength="8" placeholder="ROOM CODE" autocomplete="off" spellcheck="false" aria-label="Room code">
           <button class="btn ghost small" id="joinBtn" type="button">Join</button>
         </div>
+        <div class="row"><span class="or" style="margin:0 6px 0 0">Mode</span><div class="seg" id="onMode" role="group" aria-label="Online mode" style="flex:1"><button type="button" data-m="blade">Blade</button><button type="button" data-m="gun">Gunsmoke</button></div></div>
         <div class="room" id="roomBox" hidden><span>Room code</span><strong id="roomCode">------</strong><button class="btn ghost small" id="copyBtn" type="button">Copy link</button></div>
         <p class="netst" id="netStatus" aria-live="polite"></p>
       </div>
@@ -592,6 +594,9 @@ details.ctrls[open] summary::before{content:"– "}
           <kbd>T</kbd><span>Acrobatic flip · toward them up close: vault over their head · click in the air to cut on landing</span>
           <kbd>C · R · E</kbd><span>Crouch · jump · spin</span>
           <kbd>X</kbd><span>Throw a shuriken (5 per round)</span>
+          <kbd>1</kbd><span>Gunsmoke: draw the pistol · click to fire, hold right-click to aim (the reticle steadies), the mouse moves the aim</span>
+          <kbd>2</kbd><span>Gunsmoke: back to the blade · a parry turns a bullet aside, a perfect one sends it back</span>
+          <kbd>F</kbd><span>Gunsmoke: dive (Max Payne style) toward the keys you hold · you can fire in the air</span>
           <kbd>Wheel</kbd><span>Twirl your sword</span>
           <kbd>G · Esc</kbd><span>Attack indicator · pause</span>
         </div>
@@ -2798,6 +2803,11 @@ const Sfx = (function(){
       if (!play(ring ? 'clangP' : big ? 'clangH' : 'clang', .62*power, pan, rate*(ring ? .97 : 1), ring ? .5 : .36)) return L.clang(power, pan, chain);
       if (ring) play('clang', .3, pan, rate*1.25, .2);   // a bright layer on top for the perfect moments
     },
+    // a black-powder shot: the crack, the boom of the charge and the roll of it off the walls
+    gun(pan){ if (!ok()) return; const t = ac.currentTime, d = dest(pan);
+      nz(t, .75, .05, 'highpass', 2600, 900, .7, .001, d); nz(t, .9, .22, 'lowpass', 2400, 160, .8, .002, d); tone(95, t, .7, .22, 'sine', 38, .001, d); nz(t + .02, .25, .7, 'lowpass', 900, 120, .6, .03, d); },
+    ricochet(pan){ if (!ok()) return; const t = ac.currentTime, d = dest(pan); tone(2900, t, .12, .32, 'sine', 900, .001, d); nz(t, .3, .05, 'highpass', 5200, null, .8, .001, d); },
+    reload(pan){ if (!ok()) return; const t = ac.currentTime, d = dest(pan); for (const k of [0, .38, .8]){ nz(t + k, .14, .03, 'highpass', 3800, null, .9, .001, d); tone(1600 - k*300, t + k, .05, .05, 'square', null, .001, d); } },
     swing(heavy, pan){ if (!ok()) return; if (!play(heavy ? 'swingH' : 'swing', heavy ? .75 : .6, pan, 1, .12, .07)) L.swing(heavy, pan); },
     hit(heavy, pan){ if (!ok()) return; if (!play(heavy ? 'hitH' : 'hit', heavy ? .85 : .7, pan, 1, .14)) L.hit(heavy, pan); },
     flesh(heavy, pan){ if (!ok()) return; if (!play('flesh', heavy ? .55 : .38, pan, heavy ? .85 : 1, .08)) L.flesh(heavy, pan); },
@@ -3774,6 +3784,9 @@ function resetFighter(f, x, z){
   f.pose.lean = 0; f.pose.drop = 0; f.pose.off = 0; f.pose.tx = 0; f.pose.tz = 0; f.pvx = f.pvz = 0; f.brakeUntil = 0; f.trail.pts.length = 0; f.flash = 0; f.prevAlpha = null; resetCloth(f);
   f.inj = { arm:0, leg:0, bleed:0, bleedUntil:0 }; f.bladeBlood = 0; f.blindUntil = 0; f.counterParry = false; f.art = null; f.artY = 0; f.artVy = 0; f.sheathClick = 0; f.shuri = SHURI_N; f.throwReady = 0; f.throwDone = true;
   f.guardAngle = f.isPlayer ? .35 : 2.8; f.buf = null; f.qIdx = 0; f.qLock = 0; f.bindPush = 0;
+  f.gun = 'blade'; f.ammo = GUN.mag; f.fireReady = 0; f.reloading = false; f.reloadUntil = 0; f.holsterT = 0; f.aiming = false; f.aimT = -1e9; f.aimX = 0; f.aimY = .25;
+  f.shotN = 0; f.diveDir = { x:0, z:1 }; f.diveReady = 0;
+  if (G.gun) f.shuri = 0;
 }
 
 /* ================= actions ================= */
@@ -3816,6 +3829,7 @@ function spinCurve(u){
 }
 function airY(f){ if (!f.air) return 0; const u = clamp((T - f.air.start)/(f.air.end - f.air.start), 0, 1); return 4*JUMP_H*u*(1 - u); }
 function trySpin(f, dir){
+  if (G.gun && f.gun === 'pistol') return false;
   if (!canAct(f) || !spend(f, 10, true)) return false;
   f.spinDir = dir || (srnd() < .5 ? 1 : -1); f.spinFrom = 0; f.spinWh = false;
   enter(f, 'spin', SPIN_DUR);
@@ -3863,6 +3877,7 @@ function land(f){
   else if (f.state === 'windup' && f.atk && f.atk.air){ groundShock(f.pos.x, f.pos.z, INK, 1.8, 380); shake(.12); }
 }
 function tryAttack(f, angle, heavy, opts){
+  if (G.gun && f.gun === 'pistol') return false;
   const combo = canCombo(f);
   if (!canAct(f) && !combo) return false;
   const rip = T < f.riposteUntil;
@@ -3901,6 +3916,7 @@ function canCounter(f){
   return (f.state === 'stagger' || f.state === 'deflect') && f.t >= 60 && o && o.atk && o.atk.riposte && !o.atk.resolved && (o.state === 'windup' || o.state === 'hold' || o.state === 'active') && f.breath >= 6;
 }
 function tryParry(f, angle){
+  if (G.gun && f.gun === 'pistol') return false;
   const counter = !canAct(f) && canCounter(f);
   const desperate = f.state === 'broken' && f.t >= 90 && f.breath >= 8;
   if (!canAct(f) && !counter && !desperate) return false;
@@ -4175,9 +4191,10 @@ function hit(a, b, over){
   dojoEvent('hit', { a, b, atk });
   if (DOJO.on && b.hp < 60){ b.hp = MAX_HP; b.hpLag = MAX_HP; }
   if (b.hp > 0) Sfx.voice(b, atk.heavy || atk.art || atk.riposte ? 'hurtH' : 'hurt');
-  if (b.hp <= 0){ if (fight()) startFinisher(a, b); else kill(b, a); return; }
+  if (atk.head) b.hitKind = 'heavy';
+  if (b.hp <= 0){ if (fight() && !atk.gun) startFinisher(a, b); else kill(b, a); return; }
   if (b.air){ b.air.end = Math.min(b.air.end, T + 160); }
-  if (!hyper) enter(b, 'hitstun', atk.ranged ? 220 : atk.heavy ? 480 : 320);
+  if (!hyper && !(b.state === 'dive' && b.t < DIVE_SLIDE)) enter(b, 'hitstun', atk.ranged ? 220 : atk.heavy ? 480 : 320);
   addPosture(b, (atk.heavy ? 16 : 10) * a.w.posture * (atk.postureMul || 1));
 }
 const DEFLECT = 210;
@@ -5401,6 +5418,7 @@ function stepProj(dt){
   if (!G.proj || !G.proj.length) return;
   const s = dt/1000;
   for (let i=G.proj.length - 1; i>=0; i--){
+    if (G.proj[i].kind === 'b'){ stepBullet(G.proj[i], i, dt); continue; }
     const p = G.proj[i], ox = p.x, oz = p.z;
     p.x += p.vx*s; p.z += p.vz*s; p.t += dt;
     if (p.fall){
@@ -5474,13 +5492,19 @@ function renderProj(now){
   const live = new Set();
   for (const p of G.proj || []){
     live.add(p.id);
-    let g = shuriMeshes.get(p.id); if (!g){ g = shuriMesh(); shuriMeshes.set(p.id, g); }
+    let g = shuriMeshes.get(p.id); if (!g){ g = p.kind === 'b' ? bulletMesh() : shuriMesh(); shuriMeshes.set(p.id, g); }
     g.position.set(p.x, p.y, p.z);
+    if (p.kind === 'b'){
+      // a hot tracer along its flight, and a thread of powder smoke left behind it
+      _v.set(p.vx, p.vy, p.vz).normalize(); g.quaternion.setFromUnitVectors(_up, _v);
+      if (Math.random() < .7) spriteFx(TEX_SOFT, 0xCFC8B8, g.position.clone(), 320, (o, u) => { const sc = .07 + u*.18; o.scale.set(sc, sc, 1); o.material.opacity = .4*(1 - u); });
+      continue;
+    }
     // flies nearly flat, spinning; tumbling once it has been knocked out of the air
     if (p.fall){ g.rotation.set(now*.02, now*.013, 0); g.userData.blur.visible = false; }
     else { g.quaternion.copy(camera.quaternion); g.userData.star.rotation.set(.35, 0, now*.045*p.spin); g.userData.blur.visible = true; }   // face the eye: a star, not a sliver
   }
-  for (const [id, g] of shuriMeshes) if (!live.has(id)){ scene.remove(g); g.userData.blur.geometry.dispose(); g.userData.blur.material.dispose(); shuriMeshes.delete(id); }
+  for (const [id, g] of shuriMeshes) if (!live.has(id)){ scene.remove(g); if (g.userData.dispose) g.userData.dispose(); else { g.userData.blur.geometry.dispose(); g.userData.blur.material.dispose(); } shuriMeshes.delete(id); }
 }
 // a star that was knocked down stays on the ground for a while
 function shuriRest(p){
@@ -5492,6 +5516,260 @@ function shuriRest(p){
 function throwArm(f, u){
   if (u < .38){ const q = smooth(u/.38); return _v.set(lerp(-.2, -.46, q), lerp(.12, .62, q), lerp(-.22, .22, q)); }
   const q = easeOut(clamp((u - .38)/.3, 0, 1)); return _v.set(lerp(-.46, -.06, q), lerp(.62, .5, q), lerp(.22, -.62, q));
+}
+
+/* ================= Gunsmoke: blade and pistol =================
+   A second way to fight, chosen from the menu. Each fighter carries their blade and a pistol (a samurai-era hand cannon):
+   1 draws the pistol, 2 the blade. With the pistol out the mouse moves an aim point over the opponent; right-click (or Q)
+   aims, and the reticle steadies the longer it is held still; a click fires. Shots are real projectiles in G.proj: they
+   fly at where the aim was, so a moving target has to be led. A raised blade turns a bullet aside, a perfect parry sends
+   it back. F throws the body into a Max Payne dive toward the keys held: low, fast, out of the line of fire, and the
+   pistol keeps working in the air. Everything here is simulation, so it runs the same on both machines online. */
+const GUN = { mag:6, rof:280, reload:1300, holsterFill:1500, speed:34, range:26, dmgB:11, dmgH:19, swap:240, dive:980, diveCd:1250, diveSpeed:7.4, diveCost:14 };
+const DIVE_UP = 90, DIVE_LAND = 560, DIVE_SLIDE = 780;
+function trySwap(f, to){
+  if (!G.gun || f.gun === to || !canAct(f)) return false;
+  f.gun = to; f.aiming = false;
+  if (to === 'blade') f.holsterT = T;
+  enter(f, 'swap', GUN.swap);
+  Sfx.clink(panOf(f));
+  return true;
+}
+function canShoot(f){
+  return G.gun && f.gun === 'pistol' && (canAct(f) || (f.state === 'dive' && f.t > DIVE_UP - 20 && f.t < DIVE_SLIDE + 60) || (f.state === 'flip' && f.t > FLIP_UP && f.t < FLIP_DOWN) || f.state === 'jump');
+}
+function startReload(f){
+  if (f.reloading || f.ammo >= GUN.mag) return;
+  f.reloading = true; f.reloadUntil = T + GUN.reload; Sfx.reload(panOf(f));
+  if (fight() && f.isPlayer) setTiming('<b class="mid">RELOADING</b>six more · or draw the blade (2)');
+}
+function tryFire(f){
+  if (!canShoot(f) || f.reloading) return false;
+  if (f.ammo <= 0){ startReload(f); return false; }
+  if (T < f.fireReady) return false;
+  f.ammo--; f.fireReady = T + GUN.rof; f.shotN = (f.shotN || 0) + 1;
+  spawnBullet(f);
+  Sfx.gun(panOf(f)); shake(f.isPlayer ? .08 : .03);
+  if (f.ammo <= 0) startReload(f);
+  return true;
+}
+// where the shooter's aim sits: across the opponent (aimX, -1..1, about 0.9 m either side) and up their body (aimY)
+function aimPoint(f){
+  const o = f.opp, fw = dirTo(f, o);
+  return { x:o.pos.x - fw.z*(f.aimX || 0)*.9, y:1.15 + (f.aimY || 0)*.8 + airY(o), z:o.pos.z + fw.x*(f.aimX || 0)*.9 };
+}
+function diveY(f){ const t = f.t; if (t < DIVE_UP || t >= DIVE_LAND) return 0; const u = (t - DIVE_UP)/(DIVE_LAND - DIVE_UP); return 4*.42*u*(1 - u)*(1.15 - .3*u); }
+function muzzleSim(f){
+  const fw = dirTo(f, f.opp);
+  let y = 1.42 + airY(f);
+  if (f.state === 'crouch') y = 1.02;
+  if (f.state === 'dive') y = f.t < DIVE_LAND ? .78 + diveY(f) : .45;
+  return { x:f.pos.x + fw.x*.5 - fw.z*.12, y, z:f.pos.z + fw.z*.5 + fw.x*.12 };
+}
+// how far a shot may stray: wide from the hip, tight once an aim has been held still; moving and flying cost accuracy
+function gunSpread(f){
+  const steady = f.aiming ? clamp((T - f.aimT)/450, 0, 1) : 0;
+  let s = f.aiming ? lerp(3.6, .55, steady) : 5.2;
+  if (f.state === 'dive') s = Math.min(s, 2.2);
+  else s += 2.4*Math.min(1, Math.hypot(f.vel.x, f.vel.z)/SPEED);
+  if (f.state === 'crouch') s *= .75;
+  if (f.state === 'flip' || f.air) s += 2;
+  return s*DEG;
+}
+function spawnBullet(f){
+  const m = muzzleSim(f), a = aimPoint(f);
+  let ux = a.x - m.x, uy = a.y - m.y, uz = a.z - m.z; const L = Math.hypot(ux, uy, uz) || 1; ux /= L; uy /= L; uz /= L;
+  const sp = gunSpread(f), yaw = srand(-1, 1)*sp, pit = srand(-1, 1)*sp*.6, cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const rx = ux*cy - uz*sy, rz = ux*sy + uz*cy; ux = rx; uz = rz; uy += pit;
+  const n = Math.hypot(ux, uy, uz); ux /= n; uy /= n; uz /= n;
+  if (!G.proj) G.proj = [];
+  G.projId = (G.projId || 0) + 1;
+  G.proj.push({ id:G.projId, kind:'b', own:SIMF.indexOf(f), x:m.x, y:m.y, z:m.z, vx:ux*GUN.speed, vy:uy*GUN.speed, vz:uz*GUN.speed, t:0, back:false, fall:false, passed:false });
+}
+// what a bullet at (x, y, z) touches on fighter b: 0 nothing, 1 the body, 2 the head
+function gunVolumeHit(b, x, y, z){
+  if (b.state === 'dive' && b.t >= DIVE_UP && b.t < DIVE_SLIDE + 80){
+    // laid out flat along the dive, head first
+    const d = b.diveDir || { x:0, z:1 }, yc = b.t < DIVE_LAND ? .66 + diveY(b) : .3;
+    if (Math.abs(y - yc) > .3) return 0;
+    if (segDist(b.pos.x - d.x*.55, b.pos.z - d.z*.55, b.pos.x + d.x*.75, b.pos.z + d.z*.75, x, z) > .32) return 0;
+    return Math.hypot(x - (b.pos.x + d.x*.62), z - (b.pos.z + d.z*.62)) < .2 ? 2 : 1;
+  }
+  if (Math.hypot(x - b.pos.x, z - b.pos.z) > .3) return 0;
+  let top = 1.85;
+  if (b.state === 'crouch' || (b.state === 'crouchUp' && b.t < 120)) top = 1.2;
+  if (b.state === 'dive' || b.state === 'roll') top = 1.15;
+  const yy = y - airY(b) - (b.artY || 0);
+  if (yy < 0 || yy > top) return 0;
+  return yy > top - .3 ? 2 : 1;
+}
+function stepBullet(p, i, dt){
+  const s = dt/1000, ox = p.x, oy = p.y, oz = p.z;
+  p.x += p.vx*s; p.y += p.vy*s; p.z += p.vz*s; p.t += dt;
+  const a = SIMF[p.own], b = SIMF[1 - p.own];
+  if (!p.passed && b.state !== 'dead' && (G.phase === 'fight' || G.phase === 'menu')){
+    const L = Math.hypot(p.x - ox, p.y - oy, p.z - oz), n = Math.max(1, Math.ceil(L/.07));
+    for (let k=1;k<=n;k++){
+      const q = k/n, x = ox + (p.x - ox)*q, y = oy + (p.y - oy)*q, z = oz + (p.z - oz)*q, part = gunVolumeHit(b, x, y, z);
+      if (part){ p.x = x; p.y = y; p.z = z; if (bulletMeets(p, a, b, part) === 'gone'){ G.proj.splice(i, 1); return; } break; }
+    }
+  }
+  if (p.y < 0){ dustFx(p.x, p.z, 2, .05); G.proj.splice(i, 1); return; }
+  if (p.t > GUN.range/GUN.speed*1000 || Math.hypot(p.x, p.z) > ARENA.r + 8) G.proj.splice(i, 1);
+}
+function bulletMeets(p, a, b, part){
+  const through = (b.state === 'roll' && b.t >= ROLL_IF0 && b.t <= ROLL_IF1) || (b.state === 'flip' && b.t >= FLIP_IF0 && b.t <= FLIP_IF1);
+  if (through){ p.passed = true; if (fight() && b.isPlayer) callout('Dodged', 'good', 'the shot found nothing'); return 'keep'; }
+  if (b.state === 'parry' && b.gun !== 'pistol'){
+    const perfect = parryPerfect(b), dir = dirTo(b, a), sx = b.pos.x + dir.x*.55, sz = b.pos.z + dir.z*.55, sy = clamp(p.y, .9, 1.6);
+    const cp = new THREE.Vector3(sx, sy, sz);
+    clashFx(cp, perfect, 1); streaks(cp, perfect ? GOLD : 0xFFE9B0, perfect ? 16 : 9, 6, .5);
+    hitstop = perfect ? 70 : 35; shake(perfect ? .12 : .06);
+    Sfx.ricochet(panOf(b)); Sfx.clang(perfect ? 1.1 : .55, panOf(b), 1);
+    if (perfect){
+      // turned on the flat of the blade and sent straight back at the shooter's chest
+      const tx = a.pos.x - sx, ty = 1.25 + airY(a) - sy, tz = a.pos.z - sz, L = Math.hypot(tx, ty, tz) || 1, v = GUN.speed*1.1;
+      p.x = sx; p.y = sy; p.z = sz; p.vx = tx/L*v; p.vy = ty/L*v; p.vz = tz/L*v; p.own = 1 - p.own; p.t = 0; p.back = true;
+      enter(b, 'idle'); b.pose.alpha = wrap(b.parryAngle + Math.PI/2); b.pose.phi = 16*DEG; b.pose.off = 1;
+      if (fight()){ if (b.isPlayer){ b.stats.perfect++; callout('Sent back', 'gold', 'perfect parry · the bullet returns'); } else if (a.isPlayer) callout('Returned', 'bad', 'your own bullet is coming back'); }
+      return 'keep';
+    }
+    if (fight() && b.isPlayer){ b.stats.parryOk++; setTiming('<b class="ok">PARRY ✓</b>bullet turned aside · keep the guard up against the next'); }
+    return 'gone';
+  }
+  const head = part === 2, dmg = p.back ? 16 : head ? GUN.dmgH : GUN.dmgB;
+  hit(a, b, { angle:srand(-.4, .4), heavy:false, dmg, head, gun:true, ranged:true, postureMul:.35, cp:{ x:p.x, y:p.y, z:p.z }, resolved:true, contact:false, feinted:false, dodged:false, riposte:false, combo:1, dmgMul:1 });
+  if (fight() && head){ if (a.isPlayer) callout('Headshot', 'ember', `${dmg} damage`); else if (b.isPlayer) callout('Headshot', 'bad', 'keep your head down'); }
+  Sfx.stab(panOf(b));
+  return 'gone';
+}
+function tryDive(f, dir){
+  if (!G.gun || !canAct(f) || T < (f.diveReady || 0) || f.breath < GUN.diveCost*.5) return false;
+  const l = Math.hypot(dir.x, dir.z) || 1;
+  spend(f, GUN.diveCost); f.diveDir = { x:dir.x/l, z:dir.z/l }; f.diveReady = T + GUN.diveCd;
+  enter(f, 'dive', GUN.dive);
+  // bullet time, in a match against the bot, when the player takes the dive with the pistol out
+  if (S.slowmo && !NET.on && f.isPlayer && f.gun === 'pistol' && fight()) slowmo = Math.max(slowmo, 640);
+  Sfx.swing(false, panOf(f));
+  return true;
+}
+function diveStep(f, dt){
+  const s = dt/1000, t = f.t, d = f.diveDir || { x:0, z:1 }, was = t - dt;
+  let v = 0;
+  if (t < DIVE_UP) v = 2.6;
+  else if (t < DIVE_LAND) v = GUN.diveSpeed;
+  else if (t < DIVE_SLIDE) v = GUN.diveSpeed*.55*(1 - (t - DIVE_LAND)/(DIVE_SLIDE - DIVE_LAND));
+  f.pos.x += d.x*v*s; f.pos.z += d.z*v*s; f.vel.x = f.vel.z = 0;
+  if (was < DIVE_LAND && t >= DIVE_LAND){ dustFx(f.pos.x, f.pos.z, 9, .35, d.x, d.z, 1.4); Sfx.thud(.8, panOf(f)); if (f.isPlayer) shake(.08); }
+  if (was < DIVE_SLIDE && t >= DIVE_SLIDE) scuffFx(f.pos.x, f.pos.z, d.x, d.z, .9);
+  if (t >= f.dur) enter(f, 'idle');
+}
+function gunStep(f){
+  if (!G.gun) return;
+  if (f.reloading && T >= f.reloadUntil){ f.reloading = false; f.ammo = GUN.mag; }
+  // a holstered pistol is reloaded while the blade does the work
+  if (f.gun === 'blade' && f.ammo < GUN.mag && T - (f.holsterT || 0) > GUN.holsterFill){ f.ammo = GUN.mag; f.reloading = false; }
+}
+/* ---- the bot with a pistol: blade up close, pistol at range; it strafes, leads its target, dives out of a held aim,
+   and reads the barrel to turn shots with the blade ---- */
+function gunBot(b, br, D){
+  const p = b.opp, d = dist(b, p);
+  if (b.state === 'dead' || p.state === 'dead' || b.state === 'bind' || b.state === 'qte' || G.phase !== 'fight') return false;
+  const fw = dirTo(b, p), rt = { x:-fw.z, z:fw.x };
+  if (!br.seenB) br.seenB = new Set();
+  for (const pr of G.proj || []){
+    const key = pr.id + (pr.back ? 'b' : '');
+    if (pr.kind !== 'b' || SIMF[pr.own] !== p || br.seenB.has(key)) continue;
+    br.seenB.add(key);
+    const eta = Math.max(0, (Math.hypot(b.pos.x - pr.x, b.pos.z - pr.z) - .4)/GUN.speed*1000), r = Math.random();
+    if (b.gun === 'blade' && canAct(b) && r < D.parry*.55) br.bParryAt = T + Math.max(0, eta - WIN()*rand(.35, .8));
+    else if (canAct(b) && r < D.dodge*1.6 + (b.gun === 'pistol' ? .12 : 0)){ const sg = Math.random() < .5 ? 1 : -1; tryDive(b, { x:rt.x*sg, z:rt.z*sg }); }
+  }
+  if (br.bParryAt && T >= br.bParryAt){ br.bParryAt = 0; if (b.gun === 'blade') tryParry(b, b.guardAngle); }
+  let want = d > b.w.reach + (b.gun === 'pistol' ? 1.2 : 2.6) ? 'pistol' : 'blade';
+  if (want === 'pistol' && b.reloading && d < 6.5) want = 'blade';
+  if (want !== b.gun && canAct(b) && T > (br.swapAt || 0) && trySwap(b, want)){ br.swapAt = T + 650; b.moveIn.x = b.moveIn.z = 0; return true; }
+  if (b.gun !== 'pistol'){
+    // a held aim on a swordsman: sometimes the guard comes up early
+    if (p.gun === 'pistol' && p.aiming && T - p.aimT > 400 && canAct(b) && Math.random() < D.parry*.02) tryParry(b, b.guardAngle);
+    return false;
+  }
+  if (T > (br.gStrafeT || 0)){ br.gStrafe = Math.random() < .5 ? -1 : 1; br.gStrafeT = T + rand(700, 1700); br.aimJit = rand(-1, 1)*D.angNoise/45; br.aimHi = rand(-.15, .45); }
+  const rad = d < 5 ? -.75 : d > 9 ? .7 : 0;
+  let mx = fw.x*rad + rt.x*(br.gStrafe || 1)*.8, mz = fw.z*rad + rt.z*(br.gStrafe || 1)*.8; const ml = Math.hypot(mx, mz);
+  if (ml > 1){ mx /= ml; mz /= ml; }
+  b.moveIn.x = mx; b.moveIn.z = mz;
+  if (!b.aiming && canShoot(b)){ b.aiming = true; b.aimT = T; br.fireAt = T + rand(300, 800)/D.aggr; }
+  const lat = p.vel.x*rt.x + p.vel.z*rt.z, lead = lat*(d/GUN.speed)/.9;
+  b.aimX = lerp(b.aimX || 0, clamp(lead*(.4 + .6*D.correct) + (br.aimJit || 0), -1, 1), .2);
+  b.aimY = lerp(b.aimY || 0, br.aimHi === undefined ? .2 : br.aimHi, .2);
+  if (T >= (br.fireAt || 0) && canShoot(b)){ tryFire(b); br.fireAt = T + rand(330, 950)/D.aggr; }
+  if (p.gun === 'pistol' && p.aiming && T - p.aimT > 300 && canAct(b) && Math.random() < D.dodge*.035){ const sg = Math.random() < .5 ? 1 : -1; tryDive(b, { x:rt.x*sg, z:rt.z*sg }); }
+  return true;
+}
+/* ---- the pistol on screen ---- */
+function makePistol(){
+  const outer = new THREE.Group(), g = new THREE.Group(); outer.add(g); g.position.set(0, .05, .06);
+  const iron = toon(0x2B2724), wood = toon(0x5A3820), brass = toon(0xB08A3A);
+  const add = (geo, m, x, y, z, rx) => { const me = new THREE.Mesh(geo, m); me.position.set(x, y, z); if (rx) me.rotation.x = rx; me.castShadow = true; g.add(me); outline(me, .006); return me; };
+  // a samurai-era hand cannon: an octagonal iron barrel on a short wooden stock, brass bands and the matchlock serpentine
+  add(new THREE.CylinderGeometry(.019, .022, .34, 8), iron, 0, .025, .16, Math.PI/2);
+  add(new THREE.CylinderGeometry(.027, .027, .03, 8), iron, 0, .025, .33, Math.PI/2);
+  add(new THREE.BoxGeometry(.034, .036, .26), wood, 0, -.002, .07);
+  const grip = add(new THREE.BoxGeometry(.034, .1, .055), wood, 0, -.06, -.07); grip.rotation.x = .55;
+  add(new THREE.SphereGeometry(.03, 8, 6), wood, 0, -.105, -.1);
+  for (const z of [.02, .12, .24]) add(new THREE.CylinderGeometry(.025, .025, .012, 8), brass, 0, .02, z, Math.PI/2);
+  add(new THREE.BoxGeometry(.008, .03, .06), brass, .022, .01, -.01);
+  const sp = add(new THREE.BoxGeometry(.006, .045, .01), iron, .026, .035, -.035); sp.rotation.x = -.6;
+  add(new THREE.BoxGeometry(.012, .008, .03), wood, 0, -.03, -.025);
+  const muzzle = new THREE.Object3D(); muzzle.position.set(0, .025, .36); g.add(muzzle);
+  outer.userData.muzzle = muzzle; g.scale.setScalar(1.3);
+  return outer;
+}
+function muzzleFx(f, v){
+  const m = v.pistol.userData.muzzle; m.getWorldPosition(_tipTmp);
+  const at = _tipTmp.clone();
+  spriteFx(TEX_STAR, 0xFFF0C0, at, 90, (o, u) => { const s = .55*(1 - u); o.scale.set(s, s, 1); o.material.rotation = u*2; });
+  for (let i=0;i<3;i++){ const dx = rand(-.06, .06), dz = rand(-.06, .06);
+    spriteFx(TEX_SOFT, 0xDCD6C8, at.clone(), 700 + i*120, (o, u) => { const s = .18 + u*.55; o.scale.set(s, s, 1); o.material.opacity = .55*(1 - u); o.position.y += .0025; o.position.x += dx*.02; o.position.z += dz*.02; }); }
+  streaks(at, 0xFFE2A0, 6, 4, .3);
+  flashLight.position.copy(at); flashLight.color.setHex(0xFFD9A0); flashLevel = Math.max(flashLevel, 1.1);
+}
+const _gAim = new THREE.Vector3(), _gL = new THREE.Vector3(), _gD = new THREE.Vector3(), _gH = new THREE.Vector3(), _gT = new THREE.Vector3(), HOLSTER = new THREE.Vector3(.25, .0, .07);
+function gunPose(f, v, dt){
+  if (!v.pistol){ v.pistol = makePistol(); v.body.add(v.pistol); }
+  const drawn = f.gun === 'pistol', swapping = f.state === 'swap', sw = swapping ? clamp(f.t/GUN.swap, 0, 1) : 1;
+  // a swap takes the hand to the hip; what it holds changes halfway
+  const show = swapping ? (sw >= .5 ? drawn : !drawn) : drawn, k = swapping ? Math.abs(sw - .5)*2 : 1;
+  v.weapon.visible = !show; if (v.weapon2) v.weapon2.visible = !show; if (v.chain && show) v.chain.group.visible = false;
+  const o = f.opp, fw = dirTo(f, o);
+  _gAim.set(o.pos.x - fw.z*(f.aimX || 0)*.9, 1.15 + (f.aimY || 0)*.8 + airY(o), o.pos.z + fw.x*(f.aimX || 0)*.9);
+  _gL.copy(_gAim); v.body.worldToLocal(_gL);
+  _gD.copy(_gL).sub(SH_R).normalize();
+  v.recoil = (v.recoil || 0)*Math.exp(-(dt || 0)*.012);
+  if (f.shotN !== v.shotN){ if (v.shotN !== undefined && show){ v.recoil = 1; muzzleFx(f, v); } v.shotN = f.shotN; }
+  v.aimK = lerp(v.aimK || 0, f.aiming && show ? 1 : 0, 1 - Math.exp(-(dt || 0)*.02));
+  const hand = _gH.copy(SH_R).addScaledVector(_gD, .44 + .16*v.aimK); hand.y -= .1*(1 - v.aimK);
+  hand.y += .07*v.recoil; hand.addScaledVector(_gD, -.06*v.recoil);
+  if (show){
+    _gT.copy(HOLSTER).lerp(hand, k); _b.copy(_gT);
+    // two hands on it when aiming: the left cups under the right
+    if (v.aimK > .02){ _gT.copy(_b).add(_v.set(-.07, -.05, .02)); _a.lerp(_gT, v.aimK); }
+    else if (f.wkey !== 'dual' && !f.w.chain) _a.lerp(LEFT_REST, .8);
+    v.pistol.position.copy(_b); v.pistol.lookAt(_gAim); v.pistol.rotateX(-.45*v.recoil);
+  } else {
+    if (swapping) _b.lerp(HOLSTER, 1 - k);
+    v.pistol.position.copy(HOLSTER); v.pistol.rotation.set(Math.PI/2 + .25, 0, .15);
+  }
+  v.pistol.visible = true;
+}
+/* ---- the bullets on screen ---- */
+const BULLET_GEO = new THREE.CylinderGeometry(.012, .006, .6, 5); BULLET_GEO.translate(0, -.3, 0);
+const BULLET_MAT = new THREE.MeshBasicMaterial({ color:0xFFF0C8, fog:false });
+function bulletMesh(){
+  const g = new THREE.Group(), m = new THREE.Mesh(BULLET_GEO, BULLET_MAT); m.userData.noEdge = true; g.add(m);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map:TEX_SOFT, color:0xFFD890, transparent:true, opacity:.7, depthWrite:false, blending:THREE.AdditiveBlending })); glow.scale.set(.32, .32, 1); g.add(glow);
+  g.userData.bullet = true; g.userData.dispose = () => glow.material.dispose(); scene.add(g); return g;
 }
 
 /* ================= wounds =================
@@ -5518,6 +5796,7 @@ function stepFighter(f, dt){
   else if (f.state === 'spin') mob = .45;
   else if (f.state === 'crouchUp') mob = .5;
   else if (f.state === 'throw') mob = .45;
+  else if (f.state === 'swap') mob = .6;
   const sp = SPEED * f.w.move * mob * (1 - .13*f.inj.leg) * (winded(f) ? .82 : 1);
   /* footwork: quick to get going, a short slide when you let go, and a hard plant when you reverse. Each has its own rate,
      so a change of direction snaps while a stop still carries a little weight. */
@@ -5620,6 +5899,8 @@ function stepFighter(f, dt){
       break;   // ends on landing
     case 'art': artStep(f, dt); break;
     case 'throw': throwStep(f); break;
+    case 'dive': diveStep(f, dt); break;
+    case 'swap': if (f.t >= f.dur) enter(f, 'idle'); break;
     case 'artRecover':
       if (f.sheathClick && T >= f.sheathClick){ f.sheathClick = 0; Sfx.clink(panOf(f)); }
       if (f.t >= f.dur){ f.art = null; enter(f, 'idle'); }
@@ -5644,22 +5925,26 @@ function stepFighter(f, dt){
    mv mouse travel (for the bind), ev events: L left press, R right press / Q, D dash, O roll, E spin, J jump, T throw, W+/W- wheel, K:x a QTE letter.
    Each fighter's packet is read by playerControl() at the step it belongs to, which is what lets two machines agree online. */
 const keys = {};
-const input = { guard:.35, stick:{ x:30, y:12 }, rmb:false, lmb:false, lmbT:0, drag:{ x:0, y:0 }, downRel:{ x:0, y:0 } };
+const input = { guard:.35, stick:{ x:30, y:12 }, rmb:false, lmb:false, lmbT:0, drag:{ x:0, y:0 }, downRel:{ x:0, y:0 }, aim:{ x:0, y:.25 } };
 const localEv = []; let localMv = 0;
 function sampleLocal(){
   const mx = ((keys.KeyD||keys.ArrowRight)?1:0) - ((keys.KeyA||keys.ArrowLeft)?1:0);
   const mz = ((keys.KeyW||keys.ArrowUp)?1:0) - ((keys.KeyS||keys.ArrowDown)?1:0);
   const L = Math.hypot(input.drag.x, input.drag.y);
   const c = { mx, mz, g:q3(input.guard), lmb:input.lmb ? 1 : 0, rmb:(input.rmb || keys.KeyQ) ? 1 : 0, cr:(keys.ControlLeft || keys.ControlRight || keys.KeyC) ? 1 : 0,
-    dr:input.lmb && L > DRAG_MIN ? q3(wrap(Math.atan2(input.drag.y, input.drag.x) + Math.PI)) : 99, mv:q3(localMv), ev:localEv.splice(0) };
+    dr:input.lmb && L > DRAG_MIN ? q3(wrap(Math.atan2(input.drag.y, input.drag.x) + Math.PI)) : 99, mv:q3(localMv), ax:q3(input.aim.x), ay:q3(input.aim.y), ev:localEv.splice(0) };
   localMv = 0;
   return c;
 }
-const EMPTY_CTL = { mx:0, mz:0, g:.35, lmb:0, rmb:0, cr:0, dr:99, mv:0, ev:[] };
+const EMPTY_CTL = { mx:0, mz:0, g:.35, lmb:0, rmb:0, cr:0, dr:99, mv:0, ax:0, ay:.25, ev:[] };
 function playerControl(p){
   const c = p.ctl || EMPTY_CTL, o = p.opp;
   // events first: what a press means depends on the state at the step it lands in
   for (const e of c.ev){
+    if (e === 'L' && G.gun && p.gun === 'pistol'){ p.buf = { type:'fire', t:T }; continue; }
+    if (e === 'R' && G.gun && p.gun === 'pistol') continue;
+    if (e === 'P1' || e === 'P2'){ if (G.gun) p.buf = { type:'swap', to:e === 'P1' ? 'pistol' : 'blade', t:T }; continue; }
+    if (e === 'DV'){ if (G.gun) p.buf = { type:'dive', t:T }; continue; }
     if (e === 'L'){
       if (p.state === 'flip' && p.flip){ p.flip.cut = true; p.flip.ang = c.g; continue; }
       if (p.state === 'bind'){ p.bindPush = (p.bindPush || 0) + .07; continue; }
@@ -5686,6 +5971,12 @@ function playerControl(p){
   const l = Math.hypot(vx, vz); if (l > 1){ vx /= l; vz /= l; }
   p.moveIn.x = vx; p.moveIn.z = vz;
   p.guardAngle = c.g;
+  if (G.gun){
+    p.aimX = c.ax || 0; p.aimY = c.ay === undefined ? .25 : c.ay;
+    const aimNow = p.gun === 'pistol' && !!c.rmb && p.state !== 'swap';
+    if (aimNow && !p.aiming) p.aimT = T;
+    p.aiming = aimNow;
+  }
   if (p.state === 'parry') steerParry(p, c.g);
   // early in the windup the swing direction still follows the drag
   if (p.state === 'windup' && p.atk && p.atk.live && p.t < p.dur*.45 && c.lmb && c.dr !== 99) p.atk.angle = c.dr;
@@ -5708,6 +5999,9 @@ function playerControl(p){
     case 'roll': ok = tryRoll(p, moveDir); break;
     case 'throw': ok = tryThrow(p); break;
     case 'flip': ok = tryFlip(p, moveDir); break;
+    case 'fire': ok = tryFire(p); break;
+    case 'swap': ok = trySwap(p, b.to); break;
+    case 'dive': ok = tryDive(p, l > .1 ? norm(vx, vz) : rt); break;
   }
   if (ok) p.buf = null;
 }
@@ -5725,6 +6019,7 @@ function pickAngle(target, rnd){
 function botThink(b, br, D){
   const p = b.opp, d = dist(b, p);
   if (b.state === 'dead' || p.state === 'dead' || b.state === 'bind' || b.state === 'qte'){ b.moveIn.x = b.moveIn.z = 0; return; }
+  if (G.gun && gunBot(b, br, D)) return;
   // staggered and a riposte is coming: sometimes meet it
   if ((b.state === 'stagger' || b.state === 'deflect') && p.atk && p.atk.riposte && (p.state === 'windup' || p.state === 'hold') && br.cpSeen !== p.atk){
     br.cpSeen = p.atk;
@@ -5757,7 +6052,7 @@ function botThink(b, br, D){
   }
   // a star coming in: parry it, step through it, or trust the footwork
   for (const pr of G.proj || []){
-    if (pr.fall || pr.passed || SIMF[1 - pr.own] !== b || br.projSeen === pr.id + (pr.back ? 'b' : '')) continue;
+    if (pr.kind === 'b' || pr.fall || pr.passed || SIMF[1 - pr.own] !== b || br.projSeen === pr.id + (pr.back ? 'b' : '')) continue;
     br.projSeen = pr.id + (pr.back ? 'b' : '');
     const eta = Math.max(0, (Math.hypot(b.pos.x - pr.x, b.pos.z - pr.z) - .4)/SHURI_SPEED*1000), r = Math.random();
     if (eta < (D.react*GAME_SPEED)*.35) continue;
@@ -6003,6 +6298,7 @@ function update(dt){
       f.yaw = lerpAng(f.yaw, Math.atan2(-dx, -dz), 1 - Math.exp(-dt*(T < (f.blindUntil || 0) ? .0022 : .014)));
     }
     stepFighter(f, dt);
+    gunStep(f);
   }
   const A = SIMF[0], B = SIMF[1], dx = B.pos.x - A.pos.x, dz = B.pos.z - A.pos.z, d = Math.hypot(dx, dz) || .001;
   if (d < .9 && !(A.art && A.art.pass) && !(B.art && B.art.pass) && A.state !== 'flip' && B.state !== 'flip'){ const push = (.9 - d)/2; A.pos.x -= dx/d*push; A.pos.z -= dz/d*push; B.pos.x += dx/d*push; B.pos.z += dz/d*push; }
@@ -6407,7 +6703,19 @@ function poseFighter(f, dt, now){
       v.body.scale.set(1 + k*lx, 1 - k*.25, 1 + k*lz);
     }
   }
-  if (f.state === 'flip' && f.flip){
+  if (f.state === 'dive'){
+    // the shootdodge: off one foot, laid out flat along the dive with the arms still on the target, down in a skid, back up
+    const t = f.t, dd = f.diveDir || { x:0, z:1 }, lx = toLx(dd.x, dd.z), lz = toLz(dd.x, dd.z);
+    _axis.set(lz, 0, -lx).normalize();
+    let ang, y;
+    if (t < DIVE_UP){ const q = smooth(t/DIVE_UP); ang = .35*q; y = 1 - .28*q; legDrop = .28*q; }
+    else if (t < DIVE_LAND){ const u = (t - DIVE_UP)/(DIVE_LAND - DIVE_UP); ang = lerp(.35, 1.5, smooth(Math.min(1, u*3.2))); y = .66 + diveY(f); legSplit = .12; }
+    else if (t < DIVE_SLIDE + 60){ ang = 1.5; y = .3; legSplit = .2; }
+    else { const q = smooth(clamp((t - DIVE_SLIDE - 60)/Math.max(1, f.dur - DIVE_SLIDE - 60), 0, 1)); ang = lerp(1.5, 0, q); y = lerp(.3, 1, q); legTuck = .55*Math.sin(Math.PI*q); }
+    v.body.quaternion.setFromAxisAngle(_axis, ang);
+    v.body.position.y = y;
+    P.tx = P.tz = 0;
+  } else if (f.state === 'flip' && f.flip){
     /* the flip: root yaw is held at the take-off heading; the body turns inside it.
        q = pitch (head over heels, about the root's side axis) · bank (laid over sideways) · twist (round its own spine) · lean */
     const F = f.flip, t = f.t, sg = F.tw;
@@ -6599,6 +6907,8 @@ function poseFighter(f, dt, now){
     }
     if (f.state === 'throw') _a.copy(throwArm(f, f.t/Math.max(1, f.dur)));
   }
+  if (G.gun) gunPose(f, v, dt);
+  else if (v.pistol){ v.pistol.visible = false; v.weapon.visible = true; if (v.weapon2) v.weapon2.visible = true; }
   placeArm(v.armL, v.foreL, v.elbowL, SH_L, _a, -1); v.handL.position.copy(_a);
   placeArm(v.armR, v.foreR, v.elbowR, SH_R, _b, 1); v.handR.position.copy(_b);
   if (f.w && f.w.chain) updateChain(f, _a, now); else if (v.chain) v.chain.group.visible = false;
@@ -6827,9 +7137,12 @@ function updateCamera(rdt, now){
     } else {
       // inside a rally the camera leans in a little with every clash
       const heat = (T - G.lastClashT < 1600) ? Math.min(G.chain, 8)/8 : 0;
-      const back = 4.1 - heat*1.1, side = 1.45 - heat*.35, h = 2.7 - heat*.55;
+      let back = 4.1 - heat*1.1, side = 1.45 - heat*.35, h = 2.7 - heat*.55;
+      if (G.gun && you.gun === 'pistol'){ const ak = you.aiming ? 1 : 0; back = lerp(back, 2.9, ak); side = lerp(side, 1.0, ak); h = lerp(h, 1.95, ak); }
       camTarget.set(you.pos.x - fw.x*back + rt.x*side, h, you.pos.z - fw.z*back + rt.z*side);
       lookTarget.set(lerp(you.pos.x, foe.pos.x, .78) + rt.x*.55, 1.1 + heat*.15, lerp(you.pos.z, foe.pos.z, .78) + rt.z*.55);
+      // with your back to the edge the camera stays inside the grounds, a little higher, instead of going into the walls
+      if (ARENA.bounds !== 'rect'){ const cr = Math.hypot(camTarget.x, camTarget.z), lim = ARENA.r + 1.6; if (cr > lim){ camTarget.x *= lim/cr; camTarget.z *= lim/cr; camTarget.y += Math.min(1.2, (cr - lim)*.4); } }
     }
   }
   if (G.phase !== 'intro') camShot = '';
@@ -6842,7 +7155,7 @@ function updateCamera(rdt, now){
   if (!reduceMotion){ camera.position.x += camKickX; camera.position.y += camKickY; camera.position.z += camKickZ; }
   const kd = Math.exp(-rdt*.018); camKickX *= kd; camKickY *= kd; camKickZ *= kd;
   camera.lookAt(camLook);
-  const fovTarget = 55 + (reduceMotion ? 0 : fovKick) + (slowmo > 0 ? -3 : 0) + (you.state === 'dash' && G.phase !== 'menu' ? 3.5 : 0);
+  const fovTarget = 55 + (reduceMotion ? 0 : fovKick) + (slowmo > 0 ? -3 : 0) + (you.state === 'dash' && G.phase !== 'menu' ? 3.5 : 0) - (G.gun && you.gun === 'pistol' && you.aiming && G.phase === 'fight' ? 9 : 0);
   camera.fov = lerp(camera.fov, fovTarget, 1 - Math.exp(-rdt*.025));
   camera.updateProjectionMatrix();
   fovKick *= Math.exp(-rdt*.006);
@@ -6861,7 +7174,7 @@ function drawHUD(){
   const tx = (_v.x+1)/2*W, ty = (1-_v.y)/2*H;
   if (!ret.ok){ ret.x = tx; ret.y = ty; ret.ok = true; } else { ret.x = lerp(ret.x, tx, .35); ret.y = lerp(ret.y, ty, .35); }
   const R = ret.r = clamp(Math.min(W, H)*.12, 72, 118), cx = ret.x, cy = ret.y;
-  hx.lineCap = 'round';
+  hx.lineCap = 'round'; hx.globalAlpha = (G.gun && you.gun === 'pistol') ? .38 : 1;
   if (G.bind){
     // lock meter: push the marker all the way to the opponent's side
     const v = (you === SIMF[0] ? 1 : -1)*G.bind.v, w = Math.min(460, W - 64), x0 = W/2 - w/2, y = H*.74;
@@ -6952,6 +7265,36 @@ function drawHUD(){
     sw(11, 'rgba(236,228,210,.85)', 28); sw(6, c2, 22);
     hx.beginPath(); hx.arc(cx, cy, R + 12, -Math.PI/2, -Math.PI/2 + kk*TAU); hx.lineWidth = 3.5; hx.strokeStyle = c2; hx.stroke();
   }
+  hx.globalAlpha = 1;
+  if (G.gun) gunHUD();
+}
+// Gunsmoke on screen: your reticle and ammunition, and the line of the opponent's aim when it is on you
+function gunHUD(){
+  if (G.phase !== 'fight' && G.phase !== 'intro') return;
+  const scr = (x, y, z) => { _v.set(x, y, z).project(camera); return { x:(_v.x + 1)/2*W, y:(1 - _v.y)/2*H, ok:_v.z < 1 }; };
+  const o = foe;
+  if (o.gun === 'pistol' && o.state !== 'dead' && o.v && o.v.pistol){
+    const a = aimPoint(o), m = o.v.pistol.userData.muzzle.getWorldPosition(new THREE.Vector3()), p0 = scr(m.x, m.y, m.z), p1 = scr(a.x, a.y, a.z);
+    const st = o.aiming ? clamp((T - o.aimT)/450, 0, 1) : 0;
+    if (p0.ok && p1.ok){
+      hx.setLineDash([6, 7]); hx.lineWidth = 1.5 + st*1.5; hx.strokeStyle = `rgba(200,55,43,${(o.aiming ? .25 + .6*st : .1).toFixed(2)})`;
+      hx.beginPath(); hx.moveTo(p0.x, p0.y); hx.lineTo(p1.x, p1.y); hx.stroke(); hx.setLineDash([]);
+      if (o.aiming){ hx.beginPath(); hx.arc(p1.x, p1.y, 10 - 4*st, 0, TAU); hx.lineWidth = 2; hx.strokeStyle = `rgba(200,55,43,${(.4 + .5*st).toFixed(2)})`; hx.stroke(); }
+    }
+  }
+  const f = you; if (f.gun !== 'pistol' || f.state === 'dead') return;
+  const a = aimPoint(f), p = scr(a.x, a.y, a.z); if (!p.ok) return;
+  const steady = f.aiming ? clamp((T - f.aimT)/450, 0, 1) : 0, sp = gunSpread(f);
+  const r = Math.max(5, Math.tan(sp)/Math.tan(camera.fov*DEG/2)*H/2);
+  const col = f.aiming && steady > .95 ? '#C8372B' : '#15130F';
+  const ring = (w, c) => { hx.beginPath(); hx.arc(p.x, p.y, r, 0, TAU); hx.lineWidth = w; hx.strokeStyle = c; hx.stroke();
+    for (let i=0;i<4;i++){ const an = i*Math.PI/2; hx.beginPath(); hx.moveTo(p.x + Math.cos(an)*(r + 4), p.y + Math.sin(an)*(r + 4)); hx.lineTo(p.x + Math.cos(an)*(r + 13), p.y + Math.sin(an)*(r + 13)); hx.stroke(); } };
+  ring(5, 'rgba(236,228,210,.75)'); ring(2, col);
+  hx.fillStyle = col; hx.beginPath(); hx.arc(p.x, p.y, 2.2, 0, TAU); hx.fill();
+  // six chambers under the reticle; a turning arc while it reloads
+  const bx = p.x - 6*7/2;
+  for (let i=0;i<GUN.mag;i++){ hx.fillStyle = 'rgba(236,228,210,.8)'; hx.fillRect(bx + i*7 - 1, p.y + r + 18, 6, 11); hx.fillStyle = i < f.ammo ? '#15130F' : 'rgba(21,19,15,.18)'; hx.fillRect(bx + i*7, p.y + r + 19, 4, 9); }
+  if (f.reloading){ const q = clamp(1 - (f.reloadUntil - T)/GUN.reload, 0, 1); hx.beginPath(); hx.arc(p.x, p.y, r + 20, -Math.PI/2, -Math.PI/2 + q*TAU); hx.lineWidth = 3; hx.strokeStyle = '#B0241C'; hx.stroke(); }
 }
 // an arc with a paper halo under it, so it reads over dark robes and pale stone alike
 function arcHalo(cx, cy, r, ang, span, width, color){ arcSeg(cx, cy, r, ang, span, width + 5, 'rgba(236,228,210,.8)'); arcSeg(cx, cy, r, ang, span, width, color); }
@@ -6976,7 +7319,7 @@ function updateDOM(){
     }
     h.postBar.classList.toggle('hot', f.posture > 72);
     const rip = T < f.riposteUntil && f.state === 'idle';
-    const txt = (rip ? 'riposte ready · ' : '') + `✦ ${f.shuri | 0}`;
+    const txt = (rip ? 'riposte ready · ' : '') + (G.gun ? (f.gun === 'pistol' ? `◉ ${f.ammo}/${GUN.mag}${f.reloading ? ' · reloading' : ''}` : `blade · ◉ ${f.ammo}/${GUN.mag}`) : `✦ ${f.shuri | 0}`);
     if (h.st.textContent !== txt) h.st.textContent = txt;
     h.st.classList.toggle('rip', rip);
   }
@@ -7054,13 +7397,14 @@ function callout(text, kind, sub){
   if (sub){ const s = document.createElement('small'); s.textContent = sub; d.appendChild(s); }
   calloutEl.appendChild(d);
 }
-const timingEl = $('#timing');
+const timingEl = $('#timing'), TIP_DEFAULT = timingEl.innerHTML;
 function setTiming(html){ if (G.phase === 'fight' || G.phase === 'roundEnd') timingEl.innerHTML = html; }
 
 /* ================= match flow ================= */
 function startMatch(opts){
   opts = opts || {};
   if (DOJO.on) dojoStop();
+  G.gun = (opts.mode || MENU.mode) === 'gun';
   if (!NET.on){ SIMF = [you, foe]; you.human = true; you.bot = false; foe.human = false; foe.bot = true; }
   you.lookCfg = S.look; foe.lookCfg = S.foeLook === 'random' ? randomLook() : null;
   setWeapon(you, S.pw);
@@ -7072,6 +7416,7 @@ function startMatch(opts){
   you.wins = foe.wins = 0; you.stats = makeStats(); foe.stats = makeStats();
   clearDecals();
   G.round = 1; startRound();
+  timingEl.innerHTML = G.gun ? '<b class="mid">GUNSMOKE</b>1 pistol · 2 blade · hold right-click to aim, click to fire · F dives toward the keys you hold' : TIP_DEFAULT;
 }
 /* ---- cinematic opening ----
    Round 1 is a scene: a slow crane over the place they chose, its name brushed on screen, the two walking in from far
@@ -7215,6 +7560,8 @@ document.addEventListener('mousemove', e => {
   if (you.state === 'bind'){ localMv += Math.min(80, Math.hypot(e.movementX || 0, e.movementY || 0)); return; }
   if (locked){
     const dx = e.movementX*S.sens*AIM_GAIN, dy = -e.movementY*S.sens*AIM_GAIN;   // a short flick is enough to bring the blade round
+    // Gunsmoke: with the pistol out the mouse moves the aim over the opponent instead of the guard
+    if (G.gun && you.gun === 'pistol'){ input.aim.x = clamp(input.aim.x + dx*.0042, -1, 1); input.aim.y = clamp(input.aim.y + dy*.0042, -1, 1); return; }
     if (input.lmb){ input.drag.x += dx; input.drag.y += dy; }
     else {
       const gain = you.state === 'parry' ? 1.8 : .9;   // an open parry turns faster, like a flick of the wrist
@@ -7225,6 +7572,7 @@ document.addEventListener('mousemove', e => {
     }
   } else {
     const rel = relToReticle(e);
+    if (G.gun && you.gun === 'pistol'){ input.aim.x = clamp(rel.x/150, -1, 1); input.aim.y = clamp(rel.y/150, -1, 1); return; }
     if (input.lmb){ input.drag.x = rel.x - input.downRel.x; input.drag.y = rel.y - input.downRel.y; }
     else if (Math.hypot(rel.x, rel.y) > 20) input.guard = Math.atan2(rel.y, rel.x);
   }
@@ -7262,6 +7610,9 @@ window.addEventListener('keydown', e => {
   else if (e.code === 'KeyR') localEv.push('J');
   else if (e.code === 'KeyX') localEv.push('T');
   else if (e.code === 'KeyT') localEv.push('F');
+  else if (e.code === 'Digit1' || e.code === 'Numpad1') localEv.push('P1');
+  else if (e.code === 'Digit2' || e.code === 'Numpad2') localEv.push('P2');
+  else if (e.code === 'KeyF') localEv.push('DV');
   else if (e.code === 'KeyG'){ S.indicator = !S.indicator; syncTune(); save(); setTiming(`<b class="mid">INDICATOR</b>${S.indicator ? 'on' : 'off · read the blade'}`); }
   else if (e.code === 'Escape' && !locked) pause();
 });
@@ -7287,7 +7638,7 @@ function toMenu(){
   G.proj = [];
   if (DOJO.on) dojoStop();
   clearQTE();
-  G.paused = false; G.phase = 'menu'; G.cine = null; G.fin = null; $('#app').classList.remove('cine'); $('#hud').classList.remove('dim');
+  G.paused = false; G.phase = 'menu'; G.cine = null; G.fin = null; G.gun = false; $('#app').classList.remove('cine'); $('#hud').classList.remove('dim');
   setDesat(false);
   $('#pause').hidden = true; $('#result').hidden = true; $('#hud').hidden = true;
   mountTune('#slotMenu'); $('#menu').hidden = false;
@@ -7330,7 +7681,7 @@ const DOJO = { on:false, lesson:0, free:false, n:0, sub:{}, done:false, nextAt:0
   freeCfg:{ mode:'attack', weapon:'longsword', angle:'random', heavy:false, slow:1.3 }, lastParry:null };
 function dojoCfg(){ return DOJO.free ? DOJO.freeCfg : Object.assign({ weapon:S.pw === 'katana' ? 'longsword' : 'katana' }, DOJO_LESSONS[DOJO.lesson].s); }
 function dojoStart(lesson){
-  DOJO.on = true; DOJO.free = lesson < 0; DOJO.lesson = Math.max(0, lesson); DOJO.n = 0; DOJO.sub = {}; DOJO.done = false;
+  G.gun = false; DOJO.on = true; DOJO.free = lesson < 0; DOJO.lesson = Math.max(0, lesson); DOJO.n = 0; DOJO.sub = {}; DOJO.done = false;
   if (!S.dojoDone) S.dojoDone = [];
   SIMF = [you, foe]; you.human = true; you.bot = false; foe.human = false; foe.bot = true;
   you.lookCfg = S.look; foe.lookCfg = null;
@@ -7548,7 +7899,7 @@ const meter = (label, v) => `<span class="m"><em>${label}</em><b style="--v:${cl
    MENU.scr is the screen on show. On Title and Select the two duelists stand still for the camera (no demo fight);
    on Online and Settings the demo fight runs behind the panel. FIGHT on Select spins the random choices like a
    roulette, shows the VS card, then starts the match with exactly what the roulette landed on. */
-const MENU = { scr:'title', busy:false, idx:0, foeAuto:null };
+const MENU = { scr:'title', busy:false, idx:0, foeAuto:null, mode:'blade' };
 const W_KEYS = Object.keys(WEAPONS), A_KEYS = Object.keys(ARENAS);
 const W_ICON = {
   katana:'<path d="M6 27l26-5" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><ellipse cx="33.5" cy="21.6" rx="2.2" ry="6.5" transform="rotate(-11 33.5 21.6)" fill="currentColor"/><path d="M36 21c26-3 52-8 78-17-22 12-50 18-78 21z" fill="currentColor"/>',
@@ -7603,7 +7954,8 @@ function menuShow(scr){
   if (scr === 'settings') mountTune('#slotMenu');
   if (G.phase === 'menu') menuStage(scr);
   if (scr === 'title'){ heroRender(); setTimeout(() => { const b = document.querySelectorAll('#mlist .mi')[MENU.idx]; if (b && !$('#menu').hidden) b.focus({ preventScroll:true }); }, 30); }
-  if (scr === 'select'){ rosterRender(); p1Render(); p2Render(); arenasRender(); }
+  if (scr === 'select'){ rosterRender(); p1Render(); p2Render(); arenasRender();
+    $('#scrSelect .kick').textContent = MENU.mode === 'gun' ? 'Gunsmoke' : 'Versus'; $('#scrSelect h2').textContent = MENU.mode === 'gun' ? 'Choose your blade · the pistol comes with it' : 'Choose your blade'; }
 }
 function pickWeapon(k){
   if (!WEAPONS[k] || MENU.busy) return;
@@ -7615,9 +7967,9 @@ function cycleFoe(d){
   const opts = ['random', ...W_KEYS]; let i = opts.indexOf(S.bw); i = (i + d + opts.length) % opts.length;
   S.bw = opts[i]; save(); p2Render(); if (S.bw !== 'random'){ setWeapon(foe, S.bw); twirlKick(foe, -1); }
 }
-$('#mlist').addEventListener('click', e => { const b = e.target.closest('.mi'); if (b && b.dataset.go){ Sfx.init(); menuShow(b.dataset.go); } });
+$('#mlist').addEventListener('click', e => { const b = e.target.closest('.mi'); if (b && b.dataset.go){ Sfx.init(); if (b.dataset.go === 'select') MENU.mode = b.dataset.mode || 'blade'; menuShow(b.dataset.go); } });
 $('#mlist').addEventListener('mouseover', e => { const b = e.target.closest('.mi'); if (!b) return; MENU.idx = [...document.querySelectorAll('#mlist .mi')].indexOf(b); document.querySelectorAll('#mlist .mi').forEach(x => x.classList.toggle('on', x === b)); });
-$('#menu').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b && !b.closest('#mlist')){ Sfx.init(); menuShow(b.dataset.go); } });
+$('#menu').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b && !b.closest('#mlist')){ Sfx.init(); if (b.dataset.go === 'select' && b.classList.contains('hc')) MENU.mode = 'blade'; menuShow(b.dataset.go); } });
 $('#wgrid').addEventListener('click', e => { const b = e.target.closest('.rt'); if (b) pickWeapon(b.dataset.w); });
 $('#p2card').addEventListener('click', e => {
   if (MENU.busy) return;
@@ -7665,7 +8017,7 @@ function vsCard(bwPick, arPick){
   setTimeout(() => {
     vs.classList.add('out');
     MENU.busy = false; $('#startBtn').disabled = false;
-    startMatch({ bw:bwPick, arena:arPick }); lastNow = performance.now();
+    startMatch({ bw:bwPick, arena:arPick, mode:MENU.mode }); lastNow = performance.now();
     setTimeout(() => { vs.hidden = true; vs.classList.remove('in', 'out'); }, 400);
   }, 2100);
 }
@@ -7717,6 +8069,9 @@ $('#againBtn').addEventListener('click', () => {
 });
 $('#menuBtn').addEventListener('click', toMenu);
 $('#hostBtn').addEventListener('click', () => { Sfx.init(); hostRoom(); });
+function syncOnMode(){ document.querySelectorAll('#onMode button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.m === (S.onMode === 'gun' ? 'gun' : 'blade')))); }
+$('#onMode').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.onMode = b.dataset.m; save(); syncOnMode(); });
+syncOnMode();
 $('#joinBtn').addEventListener('click', () => { Sfx.init(); joinRoom($('#joinCode').value); });
 $('#joinCode').addEventListener('keydown', e => { if (e.key === 'Enter'){ Sfx.init(); joinRoom($('#joinCode').value); } });
 $('#copyBtn').addEventListener('click', () => {
@@ -7925,7 +8280,7 @@ function makeCfg(){
   const akeys = Object.keys(ARENAS), arena = S.arena === 'random' ? akeys[Math.floor(Math.random()*akeys.length)] : S.arena;
   const delay = clamp(Math.ceil(NET.rtt/2/TICK) + 2, 3, 10);
   return { t:'start', seed:(Math.random()*4294967296) >>> 0, arena, hw:S.pw, gw:NET.guestW || 'longsword', hl:S.look, gl:NET.guestLook || null, delay,
-    set:{ window:S.window, tol:S.tol, sweep:S.sweep, whiff:S.whiff, speed:S.speed, slowmo:S.slowmo } };
+    set:{ window:S.window, tol:S.tol, sweep:S.sweep, whiff:S.whiff, speed:S.speed, slowmo:S.slowmo }, mode:S.onMode === 'gun' ? 'gun' : 'blade' };
 }
 function netBegin(cfg, isHost){
   NET.cfg = cfg; NET.on = true; NET.live = true; NET.host = isHost; NET.my = isHost ? 0 : 1;
@@ -7936,7 +8291,7 @@ function netBegin(cfg, isHost){
   Object.assign(S, cfg.set);
   SIMF = isHost ? [you, foe] : [foe, you];
   you.human = foe.human = true; you.bot = foe.bot = false;
-  SEED = cfg.seed; T = 0; hitstop = slowmo = 0; G.paused = false;
+  SEED = cfg.seed; T = 0; hitstop = slowmo = 0; G.paused = false; G.gun = cfg.mode === 'gun';
   $('#menu').hidden = true; $('#result').hidden = true; $('#pause').hidden = true; mountTune('#slotMenu');
   Sfx.init();
   SIMF[0].lookCfg = cleanLook(cfg.hl); SIMF[1].lookCfg = cleanLook(cfg.gl); you.lookCfg = S.look;
