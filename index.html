@@ -675,14 +675,15 @@ const DIFFS = {
   normal: { react:300, parry:.52, dodge:.16, counter:.08, angNoise:20, misread:.08, correct:.45, timeNoise:45, punish:.6, aggr:1, feint:.15, rally:.8, rallyParry:.2, bind:.6, combo:.45, chamber:.07, cparry:.2, flank:.1, qte:1500, art:.25, artDef:.42, throw:.16 },
   hard:   { react:230, parry:.74, dodge:.12, counter:.10, angNoise:11, misread:.05, correct:.75, timeNoise:22, punish:.85, aggr:1.3, feint:.28, rally:.95, rallyParry:.16, bind:.82, combo:.65, chamber:.14, cparry:.38, flank:.2, qte:1150, art:.38, artDef:.62, throw:.26 },
 };
-const ROLL_DUR=560, ROLL_ANT=80, ROLL_END=400, ROLL_IF0=80, ROLL_IF1=360, ROLL_DIST=3.6;
+const ROLL_DUR=560, ROLL_ANT=40, ROLL_END=400, ROLL_IF0=80, ROLL_IF1=360, ROLL_DIST=3.6;
 // the acrobatic flip (T): crouch, a long airborne turn, a low landing. Untouchable through the air.
-const FLIP_DUR=820, FLIP_UP=110, FLIP_DOWN=640, FLIP_IF0=150, FLIP_IF1=600, FLIP_CD=1100;
+const FLIP_DUR=820, FLIP_UP=80, FLIP_DOWN=640, FLIP_IF0=150, FLIP_IF1=600, FLIP_CD=1100;
 // roll displacement over time: a short push-off, the tumble, then a sliding recovery on bent legs
 function rollCurve(t){
   if (t <= 0) return 0;
-  if (t < ROLL_ANT) return .06*Math.pow(t/ROLL_ANT, 2);
-  if (t < ROLL_END) return .06 + .84*(.5 - .5*Math.cos(Math.PI*(t - ROLL_ANT)/(ROLL_END - ROLL_ANT)));
+  if (t < ROLL_ANT) return .06*(t/ROLL_ANT);
+  // the body is already travelling when the key goes down: a quick start, a long settle
+  if (t < ROLL_END){ const u = (t - ROLL_ANT)/(ROLL_END - ROLL_ANT); return .06 + .84*lerp(.5 - .5*Math.cos(Math.PI*u), 1 - (1 - u)*(1 - u), .6); }
   return .9 + .1*easeOut(Math.min(1, (t - ROLL_END)/(ROLL_DUR - ROLL_END)));
 }
 const DASH_DUR=170, DASH_SPEED=12, DASH_CD=420;
@@ -3792,6 +3793,10 @@ function resetFighter(f, x, z){
 
 /* ================= actions ================= */
 const canAct = f => f.state === 'idle' || f.state === 'crouch';
+/* a dodge also cuts short the little settling states (a landing, rising from a crouch, the end of a spin, a weapon swap,
+   the tail of a blow that landed), so the key answers at once instead of after them; a whiff or a wasted parry still costs */
+const canDodge = f => canAct(f) || f.state === 'land' || f.state === 'crouchUp' || f.state === 'spinRecover' || f.state === 'swap' ||
+  (f.state === 'recovery' && f.atk && f.atk.contact && !f.atk.parried && !f.atk.dodged && f.t > f.dur*.45);
 /* ---- breath ----
    A slow resource: moves cost a little, rest refills it fast. Below WINDED the fighter is heavy and slow;
    at zero the dodges (dash, roll, jump, spin) are refused but attacking and parrying never are. */
@@ -3852,7 +3857,7 @@ function trySpinAttack(f){
   return true;
 }
 function tryJump(f, dir){
-  if (!canAct(f) || !spend(f, 12, true)) return false;
+  if (!canDodge(f) || !spend(f, 12, true)) return false;
   f.air = { start:T, end:T + JUMP_DUR };
   f.vel.x = (dir ? dir.x : 0)*2.6; f.vel.z = (dir ? dir.z : 0)*2.6;
   enter(f, 'jump', JUMP_DUR);
@@ -3968,7 +3973,7 @@ function feint(f){
   return true;
 }
 function tryDash(f, dir){
-  if (!canAct(f) || T < f.dashReady || !spend(f, 10, true)) return false;
+  if (!canDodge(f) || T < f.dashReady || !spend(f, 10, true)) return false;
   f.dir = dir; f.vel.x = f.vel.z = 0;
   enter(f, 'dash', DASH_DUR); f.dashReady = T + DASH_CD;
   f.blindUntil = 0;   // moving yourself clears your own blind spot
@@ -3986,7 +3991,7 @@ function tryDash(f, dir){
   return true;
 }
 function tryRoll(f, dir){
-  if (!canAct(f) || !spend(f, 14, true)) return false;
+  if (!canDodge(f) || !spend(f, 14, true)) return false;
   f.dir = dir; f.vel.x = f.vel.z = 0; f.blindUntil = 0;
   enter(f, 'roll', ROLL_DUR);
   Sfx.cloth(panOf(f)); if (Math.random() < .6) Sfx.voice(f, 'effort');
@@ -4000,7 +4005,7 @@ function tryRoll(f, dir){
    away (or no direction)— a back full: a backflip wound through a whole twist.
    A click in the air is kept and cut on landing. Everything here is the simulation; the look is in poseFighter. */
 function tryFlip(f, dir){
-  if (!canAct(f) || T < (f.flipReady || 0) || !spend(f, 18, true)) return false;
+  if (!canDodge(f) || T < (f.flipReady || 0) || !spend(f, 18, true)) return false;
   const o = f.opp, fw = dirTo(f, o), rt = { x:-fw.z, z:fw.x }, d = dist(f, o);
   const fwd = dir.x*fw.x + dir.z*fw.z, lat = dir.x*rt.x + dir.z*rt.z, legs = 1 - .12*f.inj.leg;
   let k, e, h;
@@ -5532,7 +5537,7 @@ const DIVE_UP = 90, DIVE_LAND = 560, DIVE_SLIDE = 780;
    so it is timed off the muzzle flash or the red line of a held aim; it also carries the body about 1.4 m off the line. */
 const SLIP = { dur:240, iframe:190, cd:520, cost:5, speed:9.2 };
 function trySlip(f, side){
-  if (!G.gun || !canAct(f) || T < (f.slipReady || 0) || !spend(f, SLIP.cost, true)) return false;
+  if (!G.gun || !canDodge(f) || T < (f.slipReady || 0) || !spend(f, SLIP.cost, true)) return false;
   const fw = dirTo(f, f.opp), sg = side < 0 ? -1 : 1;
   f.dir = { x:-fw.z*sg, z:fw.x*sg }; f.vel.x = f.vel.z = 0; f.slipReady = T + SLIP.cd;
   enter(f, 'slip', SLIP.dur);
@@ -5668,7 +5673,7 @@ function bulletMeets(p, a, b, part){
   return 'gone';
 }
 function tryDive(f, dir){
-  if (!G.gun || !canAct(f) || T < (f.diveReady || 0) || f.breath < GUN.diveCost*.5) return false;
+  if (!G.gun || !canDodge(f) || T < (f.diveReady || 0) || f.breath < GUN.diveCost*.5) return false;
   const l = Math.hypot(dir.x, dir.z) || 1;
   spend(f, GUN.diveCost); f.diveDir = { x:dir.x/l, z:dir.z/l }; f.diveReady = T + GUN.diveCd;
   enter(f, 'dive', GUN.dive);
@@ -6016,7 +6021,7 @@ function playerControl(p){
   else if (!c.cr && p.state === 'crouch') standUp(p);
   const b = p.buf;
   if (!b) return;
-  if (T - b.t > 170){ p.buf = null; return; }
+  if (T - b.t > ({ roll:1, dash:1, jump:1, flip:1, dive:1, slip:1 }[b.type] ? 260 : 170)){ p.buf = null; return; }
   const moveDir = l > .1 ? norm(vx, vz) : { x:-fw.x, z:-fw.z };
   let ok = false;
   switch (b.type){
