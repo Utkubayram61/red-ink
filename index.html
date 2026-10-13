@@ -744,10 +744,11 @@ let composer = null, gradePass = null;
 const InkShader = {
   uniforms: { tDiffuse:{ value:null }, tND:{ value:null }, uTime:{ value:0 }, uSat:{ value:1 }, uColor:{ value:0 }, uPaint:{ value:0 }, uImpact:{ value:0 }, uRes:{ value:new THREE.Vector2(1, 1) },
     uFar:{ value:220 }, uDof:{ value:0 }, uFocus:{ value:5 }, uEdges:{ value:1 }, uGlow:{ value:1 },
-    uSh:{ value:new THREE.Vector3(.76, .86, 1.06) }, uHi:{ value:new THREE.Vector3(1.05, 1.0, .9) }, uGlowK:{ value:.22 }, uGSat:{ value:1.18 }, uGlowT:{ value:.8 } },
+    uSh:{ value:new THREE.Vector3(.76, .86, 1.06) }, uHi:{ value:new THREE.Vector3(1.05, 1.0, .9) }, uGlowK:{ value:.22 }, uGSat:{ value:1.18 }, uGlowT:{ value:.8 },
+    uWarp:{ value:0 }, uWarpR:{ value:0 }, uWarpC:{ value:new THREE.Vector2(.5, .5) }, uImpRed:{ value:0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
   fragmentShader: `
-    uniform sampler2D tDiffuse, tND; uniform float uTime, uSat, uColor, uPaint, uImpact, uFar, uDof, uFocus, uEdges, uGlow, uGlowK, uGSat, uGlowT; uniform vec2 uRes; uniform vec3 uSh, uHi; varying vec2 vUv;
+    uniform sampler2D tDiffuse, tND; uniform float uTime, uSat, uColor, uPaint, uImpact, uFar, uDof, uFocus, uEdges, uGlow, uGlowK, uGSat, uGlowT, uWarp, uWarpR, uImpRed; uniform vec2 uWarpC; uniform vec2 uRes; uniform vec3 uSh, uHi; varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)))*43758.5453); }
     float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0 - 2.0*f);
       return mix(mix(hash(i), hash(i + vec2(1.0,0.0)), f.x), mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), f.x), f.y); }
@@ -802,9 +803,13 @@ const InkShader = {
       vec2 px = vUv*uRes;
       float bt = floor(uTime*8.0);                                  // the drawing boils eight times a second
       vec2 wob = (vec2(noise(px*.012 + bt*1.7), noise(px*.012 + 31.0 + bt*1.3)) - .5)*1.4/uRes;
-      vec2 uv = vUv + wob*(1.0 - uPaint);
+      // the clash: a ring of pressure runs out from where the blades met and bends the picture as it passes
+      vec2 wv = vUv;
+      if (uWarp > .001){ vec2 dw = (vUv - uWarpC)*vec2(uRes.x/uRes.y, 1.0); float dd = length(dw) + 1e-4;
+        wv += dw/dd*exp(-pow((dd - uWarpR)/.045, 2.0))*uWarp*.018*vec2(uRes.y/uRes.x, 1.0); }
+      vec2 uv = wv + wob*(1.0 - uPaint);
       vec3 c;
-      if (uPaint > .5) c = kuwa(vUv);
+      if (uPaint > .5) c = kuwa(wv);
       else {
         // a painterly smear along a slowly turning flow field
         float fa = noise(px*.0045)*6.2832; vec2 fd = vec2(cos(fa), sin(fa))*1.7/uRes;
@@ -866,7 +871,9 @@ const InkShader = {
       col += (hash(floor(px) + uTime) - .5)*.028*(1.0 - .6*uPaint);
       vec2 d = vUv - .5;
       col = mix(col, mix(ink, vec3(.25, .12, .06), uPaint), smoothstep(.5, 1.0, length(d*vec2(1.15, 1.0)))*mix(.28, .34, uPaint));
-      if (uImpact > .5){ float li = dot(col, vec3(.299, .587, .114)); col = mix(li > .45 ? ink : paper, col, smoothstep(.17, .42, sat)); }
+      if (uImpact > .5){ float li = dot(col, vec3(.299, .587, .114));
+        if (uImpRed > .5) col = li > .42 ? vec3(.74, .1, .08) : ink;                                   // a heavy blow: the frame burns red and black
+        else col = mix(li > .45 ? ink : paper, col, smoothstep(.17, .42, sat)); }
       gl_FragColor = vec4(col, 1.0);
     }`
 };
@@ -2376,7 +2383,11 @@ function slashFx(pos, angle, color, heavy){
     o.scale.set(sx, sx*.12, 1); o.material.rotation = angle + .05; o.material.opacity = u < .5 ? 1 : 1 - (u-.5)/.5;
   });
 }
-function impact(ms){ if (!reduceMotion) G.impact = Math.max(G.impact || 0, ms); }
+let impactRed = false;
+function impact(ms, red){ if (!reduceMotion){ if (!(G.impact > 0)) impactRed = !!red; else if (red) impactRed = true; G.impact = Math.max(G.impact || 0, ms); } }
+// the shock ring of a clash, in screen space (visual only)
+const WARP = { t:-1e9, k:0, c:new THREE.Vector2(.5, .5) };
+function clashWarp(pos, k){ if (reduceMotion) return; _v.copy(pos).project(camera); if (_v.z > 1) return; WARP.c.set((_v.x + 1)/2, (_v.y + 1)/2); WARP.t = performance.now(); WARP.k = k; }
 let camKickX = 0, camKickY = 0, camKickZ = 0;
 function dustFx(x, z, n, spread, px, pz, push){
   for (let i=0;i<n;i++){
@@ -2407,6 +2418,7 @@ function scuffFx(x, z, dx, dz, len){
 }
 function clashFx(pos, perfect, chain){
   const big = (perfect ? 1 : .7) * (1 + .08*Math.min(chain || 0, 8)), rot = rand(0, TAU);
+  clashWarp(pos, perfect ? 1 : .65);
   spriteFx(TEX_FLASH, PAPER_HI, pos, perfect ? 240 : 170, (o,u) => { const s = lerp(3, 1.2, u)*big; o.scale.set(s,s,1); o.material.opacity = 1 - u; });
   spriteFx(TEX_INKBURST, INK, pos, perfect ? 460 : 320, (o,u) => { const s = (.5 + easeOut(u)*2.3)*big; o.scale.set(s,s,1); o.material.rotation = rot; o.material.opacity = u < .45 ? 1 : 1 - (u - .45)/.55; });
   if (perfect) spriteFx(TEX_RING, GOLD, pos, 420, (o,u) => { const s = (.4 + easeOut(u)*3)*big; o.scale.set(s,s,1); o.material.opacity = 1 - u; });
@@ -3214,21 +3226,30 @@ function faceTextures(P, lower, scar, stubble){
     stroke(g, 100, 120, 128, 122, 156, 120, 0, 0, shade2);
   };
   const brows = (g, tilt, lift, w) => { for (const [i, x] of EX.entries()){ const sx = i ? 1 : -1;
-      stroke(g, x - 32*sx, 62 - lift + tilt*.7, x + 2*sx, 48 - lift - tilt*.1, x + 30*sx, 58 - lift - tilt, w || 17, 5, brow); } };
+      stroke(g, x - 34*sx, 58 - lift + tilt*.8, x + 2*sx, 42 - lift - tilt*.1, x + 34*sx, 52 - lift - tilt, w || 15, 3, brow); } };
+  // anime eyes: a large almond, a tall iris with a ring of colour and a dark pupil, two catchlights, a heavy upper lash
+  // line that sweeps out into a wing, a light lower lid; they read at duel distance, not only in a close-up
+  const IRIS = '#' + new THREE.Color(P.hair === P.dark ? 0x5A3420 : P.hair).lerp(new THREE.Color(0x7A4A24), .5).getHexString();
   const eyesOpen = (g, wide, narrow) => { for (const [i, x] of EX.entries()){ const sx = i ? 1 : -1;
-      const h = 12 + wide*4 - narrow*3;
-      blob(g, x, EY + 3, 27, h, PAPER);                                                                     // the white of the eye
-      g.fillStyle = INKC; g.beginPath(); g.arc(x - 2*sx, EY + 3, 10 - narrow*1.5, 0, TAU); g.fill();         // iris
-      g.fillStyle = 'rgba(255,251,240,.95)'; g.beginPath(); g.arc(x + 2*sx, EY - 1, 2.8, 0, TAU); g.fill();  // catchlight
-      stroke(g, x - 30*sx, EY + 2, x - 2*sx, EY - 12 - wide*4 + narrow*5, x + 29*sx, EY + 1, 13, 4, INKC);   // upper lid, heavy
-      stroke(g, x - 22*sx, EY + 12, x, EY + 16 + wide*2 - narrow*3, x + 22*sx, EY + 10, 3, 1.4, INKC);      // lower lid
-      stroke(g, x + 29*sx, EY, x + 35*sx, EY - 4, x + 39*sx, EY - 11, 5, 1.2, INKC); } };                   // a flick at the outer corner
+      const h = 19 + wide*5 - narrow*3, cy = EY + 4;
+      g.save(); g.beginPath(); g.ellipse(x, cy, 31, h, .06*sx, 0, TAU); g.clip();
+      g.fillStyle = PAPER; g.fillRect(x - 34, cy - 30, 68, 60);
+      g.fillStyle = 'rgba(90,60,70,.28)'; g.fillRect(x - 34, cy - 30, 68, 12);                                // the lid's shadow on the white
+      const ir = 15 - narrow*1.5, ix = x - 3*sx, gr = g.createRadialGradient(ix, cy + 2, 2, ix, cy + 2, ir);
+      gr.addColorStop(0, INKC); gr.addColorStop(.42, INKC); gr.addColorStop(.5, IRIS); gr.addColorStop(.9, '#2A1A12'); gr.addColorStop(1, INKC);
+      g.fillStyle = gr; g.beginPath(); g.ellipse(ix, cy + 2, ir*.86, ir*1.12, 0, 0, TAU); g.fill();
+      g.restore();
+      g.fillStyle = 'rgba(255,253,246,.98)'; g.beginPath(); g.arc(ix + 5*sx, cy - 5, 4.2, 0, TAU); g.fill();    // catchlights
+      g.beginPath(); g.arc(ix - 4*sx, cy + 8, 1.8, 0, TAU); g.fill();
+      stroke(g, x - 33*sx, cy + 3, x - 3*sx, cy - h - 6 - wide*3 + narrow*4, x + 32*sx, cy - 3, 16, 6, INKC);  // upper lash line, heavy
+      stroke(g, x + 30*sx, cy - 3, x + 38*sx, cy - 8, x + 44*sx, cy - 17, 7, 1.4, INKC);                        // the wing
+      stroke(g, x - 24*sx, cy + h - 1, x, cy + h + 3, x + 24*sx, cy + h - 4, 3.2, 1.2, line); } };                // lower lid
   const eyesShut = (g, droop) => { for (const [i, x] of EX.entries()){ const sx = i ? 1 : -1; stroke(g, x - 28*sx, EY + 1, x, EY + 10 + droop, x + 28*sx, EY - 2, 9, 3, INKC); } };
   const eyesSqueeze = (g) => { for (const [i, x] of EX.entries()){ const sx = i ? 1 : -1; stroke(g, x - 26*sx, EY - 11, x + 4*sx, EY + 1, x - 24*sx, EY + 12, 9, 3, INKC); stroke(g, x - 8*sx, EY - 16, x + 12*sx, EY - 18, x + 28*sx, EY - 11, 3, 1.2, line); } };
   const nose = (g) => { if (lower) return; stroke(g, 134, 110, 144, 144, 128, 158, 5.5, 3.2, line); stroke(g, 108, 160, 116, 166, 126, 161, 4, 2, line); };
   const mouth = (g, kind) => {
     if (lower) return;
-    if (kind === 'calm') stroke(g, 94, 190, 128, 198, 162, 187, 7.5, 5, line);
+    if (kind === 'calm'){ stroke(g, 100, 190, 128, 195, 156, 188, 7, 4, line); g.fillStyle = 'rgba(150,60,50,.22)'; g.beginPath(); g.ellipse(128, 200, 14, 4, 0, 0, TAU); g.fill(); }
     else if (kind === 'dead') { g.fillStyle = '#3A1410'; g.beginPath(); g.ellipse(128, 192, 14, 9, 0, 0, TAU); g.fill(); stroke(g, 108, 186, 128, 182, 148, 186, 3, 3, line); }
     else {
       const w = kind === 'shout' ? 34 : 38, h = kind === 'shout' ? 36 : 17, y = kind === 'shout' ? 178 : 184;
@@ -3240,6 +3261,7 @@ function faceTextures(P, lower, scar, stubble){
     // the fold from nose to mouth, deeper when shouting
     if (kind === 'shout' || kind === 'pain') for (const sx of [-1, 1]) stroke(g, 128 + 24*sx, 154, 128 + 33*sx, 168, 128 + 35*sx, 184, 3, 1.2, line);
   };
+  const cheeks = (g) => { for (const x of [54, 202]){ const gr = g.createRadialGradient(x, 136, 0, x, 136, 26); gr.addColorStop(0, 'rgba(210,90,80,.18)'); gr.addColorStop(1, 'rgba(210,90,80,0)'); g.fillStyle = gr; g.fillRect(x - 26, 110, 52, 52); } };
   // stubble: a wash of hair colour over the jaw, broken into grain
   const stubbleWash = (g) => { if (!stubble || lower) return; const hc = new THREE.Color(P.hair);
     g.fillStyle = `rgba(${Math.round(hc.r*255)},${Math.round(hc.g*255)},${Math.round(hc.b*255)},.22)`;
@@ -3247,8 +3269,8 @@ function faceTextures(P, lower, scar, stubble){
     for (let i=0;i<140;i++){ const a = Math.random()*TAU, r = Math.sqrt(Math.random()), x = 128 + Math.cos(a)*56*r, y = 205 + Math.sin(a)*40*r; if (y < 176) continue; g.fillStyle = `rgba(${Math.round(hc.r*255)},${Math.round(hc.g*255)},${Math.round(hc.b*255)},${.25 + Math.random()*.3})`; g.fillRect(x, y, 1.6, 2.4); } };
   const scarMark = (g) => { if (!scar) return; stroke(g, 196, 44, 184, 86, 168, 134, 5.5, 2.5, '#7A1A14'); for (const y of [62, 84, 106]) stroke(g, 186 - (y - 62)*.25, y, 184 - (y - 62)*.25, y, 174 - (y - 62)*.25, y + 2, 2.2, 1.2, '#7A1A14'); };
   const T = {
-    calm: make(g => { structure(g, 0); stubbleWash(g); brows(g, 7, 0); eyesOpen(g, 0, 1); nose(g); mouth(g, 'calm'); scarMark(g); }),
-    blink: make(g => { structure(g, 0); stubbleWash(g); brows(g, 7, 0); eyesShut(g, 0); nose(g); mouth(g, 'calm'); scarMark(g); }),
+    calm: make(g => { structure(g, 0); cheeks(g); stubbleWash(g); brows(g, 7, 0); eyesOpen(g, 0, .45); nose(g); mouth(g, 'calm'); scarMark(g); }),
+    blink: make(g => { structure(g, 0); cheeks(g); stubbleWash(g); brows(g, 7, 0); eyesShut(g, 0); nose(g); mouth(g, 'calm'); scarMark(g); }),
     shout: make(g => { structure(g, 1); stubbleWash(g); brows(g, 18, -8, 19); eyesOpen(g, 1, 0); nose(g); mouth(g, 'shout'); scarMark(g); }),
     pain: make(g => { structure(g, 1); stubbleWash(g); brows(g, -12, 8); eyesSqueeze(g); nose(g); mouth(g, 'pain'); scarMark(g); }),
     dead: make(g => { structure(g, 1); stubbleWash(g); brows(g, -4, -2); eyesShut(g, 3); nose(g); mouth(g, 'dead'); scarMark(g); }),
@@ -3368,7 +3390,7 @@ function dress(f){
   for (const t of f.tails || []) { scene.remove(t.mesh); t.geo.dispose(); }
   while (g.children.length){ const o = g.children.pop(); o.traverse(m => { if (m.geometry) m.geometry.dispose(); }); }
   for (const o of v.extra || []){ if (o.parent) o.parent.remove(o); if (o.geometry) o.geometry.dispose(); }
-  v.extra = [];
+  v.extra = []; v.locks = [];
   for (const m of v.outfitMats) m.dispose();
   if (v.faceMat){ v.faceMat.dispose(); v.faceMat = null; }
   f.cloth = []; f.tails = []; f.look = R.torso; f.dressKey = lookKey(f);
@@ -3477,7 +3499,9 @@ function dress(f){
       add(new THREE.SphereGeometry(.065, 10, 8), hairM, 0, 1.06, .1, .008);
       add(new THREE.CylinderGeometry(.006, .006, .2, 4), mk('accent', P.accent), 0, 1.07, .1, .003).rotation.z = 1.2;
     } else if (HS === 'wild' && bare){
-      for (let i=0;i<9;i++){ const a = -1.2 + i*.3, sp = add(new THREE.ConeGeometry(.035, .13, 5), hairM, Math.sin(a)*.12, 1.05 + Math.cos(a)*.05, .06 + Math.cos(a*.7)*.05, .006); sp.rotation.set(-.6 - Math.cos(a)*.3, 0, -a*.9); }
+      v.locks = v.locks || [];
+      for (let i=0;i<9;i++){ const a = -1.2 + i*.3, sp = add(new THREE.ConeGeometry(.035, .13, 5), hairM, Math.sin(a)*.12, 1.05 + Math.cos(a)*.05, .06 + Math.cos(a*.7)*.05, .006); sp.rotation.set(-.6 - Math.cos(a)*.3, 0, -a*.9);
+        v.locks.push({ m:sp, rx:sp.rotation.x, rz:sp.rotation.z, ph:rand(0, TAU), k:.6 }); }
     } else if (HS === 'braid'){
       hairTail(new THREE.Vector3(0, .93, .15), 8, .07, .045, .03, 1);
       add(new THREE.TorusGeometry(.03, .01, 5, 10), mk('accent', P.accent), 0, .93, .155, .003);
@@ -3488,14 +3512,29 @@ function dress(f){
     }
     if (bare && HS !== 'wild'){
       // loose locks: a few strands fall over the brow and the temples, so the head has a silhouette and not a cap
-      const lockGeo = new THREE.ConeGeometry(.024, .12, 5); lockGeo.rotateX(Math.PI); lockGeo.translate(0, -.06, 0);
-      const N = HS === 'long' ? 9 : 7;
+      const lockGeo = new THREE.ConeGeometry(.019, .12, 6); lockGeo.rotateX(Math.PI); lockGeo.translate(0, -.06, 0);
+      const N = HS === 'long' ? 9 : 7; v.locks = v.locks || [];
       for (let i=0;i<N;i++){
         const a = Math.PI + (i/(N - 1) - .5)*2.3 + rand(-.06, .06), side = Math.abs(i/(N - 1) - .5)*2;
         const y = 1.075 - side*.07, dy = y - .972, rr = Math.sqrt(Math.max(.003, .157*.157 - dy*dy));
         const lk = add(lockGeo, hairM, Math.sin(a)*rr, y, Math.cos(a)*rr, .005);
         lk.rotation.set((.3 + rand(0, .2))*(1 - side)*(Math.cos(a) < 0 ? 1 : -1), 0, Math.sin(a)*(.12 + side*.22));
-        lk.scale.set(1, side > .7 ? 1.45 + rand(0, .2) : .62 + rand(0, .15), .7);
+        lk.scale.set(1, side > .7 ? 1.05 + rand(0, .15) : .5 + rand(0, .12), .7);
+        v.locks.push({ m:lk, rx:lk.rotation.x, rz:lk.rotation.z, ph:rand(0, TAU), k:side > .7 ? 1 : .55 });
+      }
+      // the back of the head: a layer of longer strands from the crown down to the nape, and a few swept back over the top
+      const backGeo = new THREE.ConeGeometry(.026, .15, 6); backGeo.rotateX(Math.PI); backGeo.translate(0, -.08, 0);
+      const NB = HS === 'short' || HS === 'topknot' || HS === 'bun' ? 9 : 6;
+      for (let i=0;i<NB;i++){
+        const a = (i/(NB - 1) - .5)*2.6, y = 1.0 + Math.abs(Math.sin(a))*.02, dy = y - .972, rr = Math.sqrt(Math.max(.003, .158*.158 - dy*dy));
+        const lk = add(backGeo, hairM, Math.sin(a)*rr, y, Math.cos(a)*rr, .005);
+        lk.rotation.set(.35 + rand(0, .2), 0, Math.sin(a)*.3); lk.scale.set(1, .85 + rand(0, .35), .75);
+        v.locks.push({ m:lk, rx:lk.rotation.x, rz:lk.rotation.z, ph:rand(0, TAU), k:1.2 });
+      }
+      for (let i=0;i<4;i++){
+        const a = (i/3 - .5)*1.2, lk = add(backGeo, hairM, Math.sin(a)*.06, 1.115, .02 + Math.cos(a)*.02, .005);
+        lk.rotation.set(-1.9 - rand(0, .2), 0, Math.sin(a)*.4); lk.scale.set(1.1, .9 + rand(0, .3), .6);
+        v.locks.push({ m:lk, rx:lk.rotation.x, rz:lk.rotation.z, ph:rand(0, TAU), k:.5 });
       }
     }
   }
@@ -4461,7 +4500,7 @@ function hit(a, b, over){
   // the camera is shoved along the blow
   const rx = -kb.z, rz = kb.x, travel = -Math.cos(atk.angle);
   camKickX += (kb.x*.5 + rx*travel)*(atk.heavy ? .22 : .12); camKickZ += (kb.z*.5 + rz*travel)*(atk.heavy ? .22 : .12); camKickY += -Math.sin(atk.angle)*(atk.heavy ? .12 : .06);
-  if (atk.heavy || atk.riposte) impact(atk.heavy ? 60 : 45);
+  if (atk.heavy || atk.riposte) impact(atk.heavy ? 75 : 45, atk.heavy);
   burst(cp, INK, atk.heavy ? 20 : 12, atk.heavy ? 5 : 4);
   streaks(cp, INK, atk.heavy ? 40 : 22, atk.heavy ? 9 : 7, 1);
   if (!atk.ranged) slashFx(cp, a.isPlayer ? atk.angle : mirror(atk.angle), b.isPlayer || atk.heavy ? RED : (atk.riposte ? GOLD : INK), atk.heavy);
@@ -4538,7 +4577,7 @@ function parrySuccess(d, a, diff, tolDeg, swept){
     const D = DIFFS[G.phase === 'menu' ? 'normal' : S.diff];
     d.rallyGo = !!d.bot && srnd() < D.rally; d.rallyAt = T + srand(20, 90);
   }
-  enter(d, 'idle');
+  enter(d, 'idle'); d.v.goldT = performance.now();
   // freeze both blades in the crossed position for the hit-stop, then let them spring apart
   a.pose.alpha = atk.angle; a.pose.phi = 64*DEG; a.pose.lean = -.2;
   d.pose.alpha = wrap(d.parryAngle + Math.PI/2); d.pose.phi = 16*DEG; d.pose.off = 1; d.pose.lean = .05;
@@ -5339,10 +5378,12 @@ function endFinisher(){
   const { a, b } = F;
   G.after = F.type === 'pass' ? { dir:F.dir, bpos:F.bpos, side:F.side, t:0 } : null;
   G.fin = null; G.phase = 'fight';
+  const wasSheathed = (a.sheath || 0) > .9;
   a.thrust = 0; a.sheath = 0; a.artY = 0; a.vel.x = a.vel.z = 0;
   b.hp = 0; b.fallForward = true; b.deathK = 1; enter(b, 'dead'); b.t = 700;
   enter(a, 'idle');
   roundOver(a, b);
+  if (VIC && wasSheathed) VIC.sheathed = true;   // the finisher already put the blade away: it stays there
 }
 
 /* ================= dodges ================= */
@@ -6929,6 +6970,20 @@ function poseFighter(f, dt, now){
   // feint: a quick twirl of the blade in the hand, blade raised in front
   const twirling = T - (f.twirlT || -1e9) < 320 && (f.state === 'feintRecover' || f.state === 'idle');
   if (twirling){ alpha = 90*DEG; phi = 70*DEG; lean = .1; fast = true; }
+  // the round is won: a beat in guard, the blade raised and snapped down to throw the blood off (chiburi), then sheathed
+  let vicSh = 0;
+  if (G.phase === 'roundEnd' && VIC && VIC.f === f && f.state !== 'dead' && !(G.gun && f.gun === 'pistol')){
+    const t = VIC.sheathed ? 1e5 : G.phaseT; if (VIC.sheathed) VIC.click = VIC.flick = true;
+    if (t > 260 && t < 470){ const q = smooth((t - 260)/210); alpha = lerpAng(f.guardAngle, 70*DEG, q); phi = lerp(GP, 92, q)*DEG; fast = true; }
+    else if (t >= 470 && t < 980){ alpha = -38*DEG; phi = 12*DEG; snap = t < 540; fast = true; lean = .08;
+      if (!VIC.flick){ VIC.flick = true; chiburi(f, { dir:dirTo(f, f.opp) }); } }
+    if (t >= 980){ vicSh = smooth(clamp((t - 980)/620, 0, 1)); if (vicSh >= 1 && !VIC.click){ VIC.click = true; Sfx.clink(panOf(f)); } }
+    if (vicSh > 0){ const d = 1 - vicSh;
+      if (d < .5){ const q = d/.5; alpha = lerpAng(-135*DEG, 25*DEG, q); phi = lerp(-60, 110, q)*DEG; }
+      else { const q = (d - .5)/.5; alpha = lerpAng(25*DEG, -38*DEG, q); phi = lerp(110, 12, q)*DEG; }
+      snap = true; }
+  }
+  v.vicSh = vicSh;
   // cinematic bow and draw
   if (G.phase === 'intro' || G.phase === 'finisher'){
     lean += .62*(f.cineBow || 0); drop += .05*(f.cineBow || 0);
@@ -6962,7 +7017,7 @@ function poseFighter(f, dt, now){
   P.lean = direct ? lean : lerp(P.lean, lean, f.state === 'active' ? kf : k); P.drop = direct ? drop : lerp(P.drop, drop, k);
   P.off = lerp(P.off, off, fast ? kf : k);
   if (f.state !== 'art'){ v.artThrust = 0; v.artSpin = 0; }
-  const og = f.state === 'qte' ? (f.qteParry || 0) : f.parryAngle, shv = (G.phase === 'intro' || G.phase === 'finisher') ? (f.sheath || 0) : 0, thrust = (f.thrust || 0) + (v.artThrust || 0) + (v.atkThrust || 0);
+  const og = f.state === 'qte' ? (f.qteParry || 0) : f.parryAngle, shv = (G.phase === 'intro' || G.phase === 'finisher') ? (f.sheath || 0) : (v.vicSh || 0), thrust = (f.thrust || 0) + (v.artThrust || 0) + (v.atkThrust || 0);
   const flA = canAct(f) ? (f.twHold || 0) : 0, thF = 38*DEG + (f.twAng || 0), sw = Math.min(1, Math.abs(f.twVel || 0)/18)*flA;
   const fl2 = .22*flA;
   // a spear is carried low at the hip, the shaft running back past the body
@@ -7185,12 +7240,20 @@ function poseFighter(f, dt, now){
   // feet stay flat on the ground while standing; in the air, tumbling or down they just follow the shin
   {
     const grounded = !f.air && f.state !== 'roll' && f.state !== 'flip' && f.state !== 'dead' && f.state !== 'finVictim' && !(v.body.position.y > 1.08);
+    footIK(f, v, dt, grounded); swayHair(f, v, now);
     for (let i=0;i<2;i++){ const ang = P.lean + v.hips[i].rotation.x + v.knees[i].rotation.x; v.feet[i].rotation.x = grounded ? -ang*.9 : -ang*.2 - .1; }
   }
   v.rig.rotation.z = P.alpha;
   v.swing.rotation.y = P.phi;
   v.bladeMat.emissive.setHex(glow).multiplyScalar(glowAmt);
   v.root.updateMatrixWorld(true);
+  // the closing sheath: the last part of the stroke slides the blade home along the scabbard, hilt out at the mouth
+  if ((v.vicSh || 0) > .55 && v.saya && v.saya.length && v.saya[0].parent){
+    const w = smooth((v.vicSh - .55)/.45), sg = v.saya[0];
+    _shM.copy(sg.matrixWorld).multiply(_shT.makeTranslation(-.17, 0, 0));
+    _shM.premultiply(_shI.copy(v.swing.matrixWorld).invert()); _shM.decompose(_shP, _shQ, _shS);
+    v.weapon.position.lerp(_shP, w); v.weapon.quaternion.slerp(_shQ, w); v.weaponFixed = true; v.root.updateMatrixWorld(true);
+  } else if (v.weaponFixed){ v.weapon.rotation.x = v.weapon.rotation.z = 0; v.weaponFixed = false; }
   v.gripB.getWorldPosition(_b); v.body.worldToLocal(_b);
   if (f.wkey === 'dual' && v.weapon2){
     // twin blades: the left hand and its sword mirror the right across the body. While one blade cuts, the other holds a
@@ -7349,6 +7412,55 @@ function placeArm(up, fore, elbow, S, H, sx){
   _eE.copy(S).addScaledVector(_eD, along).addScaledVector(_eP, h);
   placeLimb(up, S, _eE); placeLimb(fore, _eE, H); elbow.position.copy(_eE);
 }
+/* ---- feet that stay where they are put ----
+   Each foot is planted on the ground and held there by a two-bone leg solve (hip pitch and roll, knee bend) while the
+   body moves over it. When the body has carried on far enough that the leg's own pose wants the foot elsewhere, the foot
+   lifts and steps there, a little ahead of the body's travel, one foot at a time. Off the ground (rolls, flips, falls,
+   jumps, dives) the legs go back to their own animation. Visual only: nothing here touches the simulation. */
+const IK_OK = new Set(['idle', 'crouch', 'crouchUp', 'windup', 'hold', 'active', 'recovery', 'parry', 'parryRecover', 'deflect', 'feintRecover', 'swap', 'throw', 'stagger', 'broken', 'land', 'spinRecover', 'hitstun', 'bind']);
+const _fk = [new THREE.Vector3(), new THREE.Vector3()], _ft = new THREE.Vector3(), _fh = new THREE.Vector3(), LEG1 = .44, FOOT_Y = .485, FOOT_Z = .05;
+function footIK(f, v, dt, grounded){
+  const on = grounded && IK_OK.has(f.state) && G.phase !== 'result' && !f.cut;
+  v.ikW = lerp(v.ikW || 0, on ? 1 : 0, 1 - Math.exp(-(dt || 0)*(on ? .012 : .03)));
+  if (!v.feetP){ v.feetP = [{ x:0, z:0, y:0, sw:-1, fx:0, fz:0, set:false }, { x:0, z:0, y:0, sw:-1, fx:0, fz:0, set:false }]; }
+  v.root.updateMatrixWorld(true);
+  for (let i=0;i<2;i++) v.feet[i].getWorldPosition(_fk[i]);
+  if (v.ikW < .02){ for (const p of v.feetP) p.set = false; return; }
+  const spd = Math.hypot(f.vel.x, f.vel.z), step = .18 + Math.min(.12, spd*.03), now = performance.now();
+  for (let i=0;i<2;i++){
+    const p = v.feetP[i], k = _fk[i];
+    if (!p.set){ p.x = k.x; p.z = k.z; p.set = true; p.sw = -1; }
+    if (p.sw >= 0){
+      // stepping: from where it was to where the leg wants it, ahead of the body by its speed
+      const u = Math.min(1, (now - p.sw)/120), tx = k.x + f.vel.x*.09, tz = k.z + f.vel.z*.09;
+      p.cx = lerp(p.fx, tx, smooth(u)); p.cz = lerp(p.fz, tz, smooth(u)); p.lift = Math.sin(Math.PI*u)*(.06 + Math.min(.06, spd*.015));
+      if (u >= 1){ p.x = tx; p.z = tz; p.sw = -1; p.lift = 0; if (spd < 1.2 && f.isPlayer !== undefined) Sfx.step(.25, panOf(f)); }
+    } else {
+      p.cx = p.x; p.cz = p.z; p.lift = 0;
+      const o = v.feetP[1 - i], drift = Math.hypot(k.x - p.x, k.z - p.z);
+      if (drift > step && o.sw < 0 && (drift > (o.set ? Math.hypot(_fk[1 - i].x - o.x, _fk[1 - i].z - o.z) : 0) || drift > step*1.8)){ p.sw = now; p.fx = p.x; p.fz = p.z; }
+      if (drift > 1.2){ p.x = k.x; p.z = k.z; }   // a teleport or a shove: catch up at once
+    }
+    // the solve, in the body's frame: aim the hip at the target, bend the knee to fit the distance
+    _ft.set(lerp(k.x, p.cx, v.ikW), k.y + p.lift*v.ikW, lerp(k.z, p.cz, v.ikW));
+    v.body.worldToLocal(_ft); _fh.copy(v.hips[i].position);
+    const dx = _ft.x - _fh.x, dy = _ft.y - _fh.y, dz = _ft.z - _fh.z, D = Math.hypot(dx, dy, dz);
+    // exact for this rig: hip = Rx(pitch)*Rz(roll), knee = Rx(bend), the foot centre at (0,-FOOT_Y,-FOOT_Z) below the knee.
+    // the knee bend sets the reach, the roll the sideways part, the pitch swings the rest onto the target
+    const reach = kr => { const c = Math.cos(kr), s2 = Math.sin(kr), y = -LEG1 - FOOT_Y*c + FOOT_Z*s2, z = -FOOT_Y*s2 - FOOT_Z*c; return [y, z]; };
+    let lo = -2.6, hi = 0; for (let it=0; it<14; it++){ const m = (lo + hi)/2, q = reach(m); if (Math.hypot(q[0], q[1]) > D) hi = m; else lo = m; }
+    const kr = Math.min(-.02, (lo + hi)/2), q = reach(kr), roll = Math.asin(clamp(-dx/q[0], -1, 1)), yp = q[0]*Math.cos(roll);
+    const pitch = Math.atan2(dz, dy) - Math.atan2(q[1], yp);
+    v.hips[i].rotation.x = pitch; v.hips[i].rotation.z = roll; v.knees[i].rotation.x = kr;
+  }
+}
+// hair locks swing with the wind and trail behind the head's motion
+function swayHair(f, v, now){
+  if (!v.locks || !v.locks.length) return;
+  const g = WIND.gustNow, P = f.pose, mx = -(P.tx || 0)*2.2, mz = -(P.tz || 0)*2.2, t = now*.001;
+  for (const L of v.locks){ const w = L.k*(.06 + .16*g);
+    L.m.rotation.x = L.rx + (Math.sin(t*3.1 + L.ph)*w + mz*L.k*.5); L.m.rotation.z = L.rz + (Math.sin(t*2.3 + L.ph*1.7)*w*.8 + mx*L.k*.5); }
+}
 function placeLimb(mesh, from, to){
   _d.subVectors(to, from); const L = _d.length();
   mesh.position.copy(from).addScaledVector(_d, .5);
@@ -7360,7 +7472,8 @@ function updateTrail(f){
   const sweeping = f.state === 'parry' && f.prevAlpha !== null && angDiff(f.pose.alpha, f.prevAlpha) > 1.2*DEG;
   const twirl = (T - (f.twirlT || -1e9) < 320 && (f.state === 'feintRecover' || f.state === 'idle')) || (Math.abs(f.twVel || 0) > 7 && canAct(f));
   const spinning = (f.state === 'spin' && f.t > SPIN_DUR*.2 && f.t < SPIN_DUR*.85) || (f.state === 'windup' && f.atk && f.atk.spin && f.spinFrom < .8 && f.t < f.dur*.7) || (f.state === 'art' && artTrail(f));
-  const qx = G.qte && G.qte.ex, emit = spinning || v.hTrail || v.ripK || (f.state === 'qte' && qx && qx.att === f && G.qte.t - qx.t0 < QTE_EX*.62) || f.state === 'active' || (f.state === 'recovery' && f.t < 90) || sweeping || twirl || (G.phase === 'intro' && f.drawing);
+  const goldK = performance.now() - (v.goldT || -1e9) < 420;
+  const qx = G.qte && G.qte.ex, emit = goldK || spinning || v.hTrail || v.ripK || (f.state === 'qte' && qx && qx.att === f && G.qte.t - qx.t0 < QTE_EX*.62) || f.state === 'active' || (f.state === 'recovery' && f.t < 90) || sweeping || twirl || (G.phase === 'intro' && f.drawing);
   // the left twin blade's cut is the mirror of the right rig's
   const mir = f.wkey === 'dual' && (v.leftK || 0) > .5;
   const sample = () => { const bp = new THREE.Vector3(), tp = new THREE.Vector3(); v.base.getWorldPosition(bp); v.tip.getWorldPosition(tp);
@@ -7389,7 +7502,7 @@ function updateTrail(f){
   }
   const n = tr.pts.length;
   if (n < 2){ tr.geo.setDrawRange(0, 0); return; }
-  const col = (f.state === 'parry' || f.state === 'parryRecover' || twirl || f.state === 'spin' || v.hTrail || v.ripK) ? tr.steel : (f.atk && f.atk.riposte ? tr.gold : (f.atk && f.atk.heavy ? tr.heat : tr.color));
+  const col = goldK ? tr.gold : (f.state === 'parry' || f.state === 'parryRecover' || twirl || f.state === 'spin' || v.hTrail || v.ripK) ? tr.steel : (f.atk && f.atk.riposte ? tr.gold : (f.atk && f.atk.heavy ? tr.heat : tr.color));
   for (let i=0;i<n;i++){
     const p = tr.pts[i], u = i/(n - 1);
     // brush pressure: the root of the stroke creeps toward the tip at the tail (it thins to a point) and a touch at the head
@@ -7829,7 +7942,7 @@ function titleCard(){
   if (!on && G.phase !== 'intro') titleKey = '';
 }
 function startRound(){
-  G.after = null; clearQTE(); G.counterN = 0; G.proj = [];
+  G.after = null; clearQTE(); G.counterN = 0; G.proj = []; VIC = null;
   resetFighter(SIMF[0], 0, 2.6); resetFighter(SIMF[1], 0, -2.6);
   brainFoe = newBrain(); brainFoe.nextAtk = T + 1600;
   input.lmb = false; input.rmb = false; localEv.length = 0;
@@ -7840,8 +7953,10 @@ function startRound(){
   $('#roundNum').textContent = G.round; updatePips();
   cineStart(G.round === 1);
 }
+const _shM = new THREE.Matrix4(), _shT = new THREE.Matrix4(), _shI = new THREE.Matrix4(), _shP = new THREE.Vector3(), _shQ = new THREE.Quaternion(), _shS = new THREE.Vector3();
+let VIC = null;   // the round's winner, for the closing flourish (visual only)
 function roundOver(winner){
-  winner.wins++; updatePips();
+  winner.wins++; updatePips(); VIC = { f:winner, flick:false, click:false };
   G.phase = 'roundEnd'; G.phaseT = 0;
   setDesat(true);
   if (S.slowmo) slowmo = 900;
@@ -8818,7 +8933,8 @@ function frame(now){
     gradePass.uniforms.uSat.value = lerp(gradePass.uniforms.uSat.value, G.desat ? .22 : 1, 1 - Math.exp(-rdt*.006));
     gradePass.uniforms.uColor.value = lerp(gradePass.uniforms.uColor.value, S.color ? 1 : 0, 1 - Math.exp(-rdt*.008));
     gradePass.uniforms.uPaint.value = S.style === 'painted' ? 1 : 0;
-    gradePass.uniforms.uImpact.value = G.impact > 0 ? 1 : 0;
+    gradePass.uniforms.uImpact.value = G.impact > 0 ? 1 : 0; gradePass.uniforms.uImpRed.value = impactRed ? 1 : 0;
+    { const wu = (performance.now() - WARP.t)/280; gradePass.uniforms.uWarp.value = wu < 1 ? WARP.k*(1 - wu)*(1 - wu) : 0; gradePass.uniforms.uWarpR.value = .02 + .36*easeOut(Math.min(1, Math.max(0, wu))); gradePass.uniforms.uWarpC.value.copy(WARP.c); }
     // depth of field: the background melts away in the finisher and in locked exchanges
     const dofT = G.phase === 'finisher' ? 1 : (G.qte || G.bind) ? .75 : 0;
     gradePass.uniforms.uDof.value = lerp(gradePass.uniforms.uDof.value, dofT, 1 - Math.exp(-rdt*.006));
