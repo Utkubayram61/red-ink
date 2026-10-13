@@ -2418,7 +2418,6 @@ function scuffFx(x, z, dx, dz, len){
 }
 function clashFx(pos, perfect, chain){
   const big = (perfect ? 1 : .7) * (1 + .08*Math.min(chain || 0, 8)), rot = rand(0, TAU);
-  clashWarp(pos, perfect ? 1 : .65);
   spriteFx(TEX_FLASH, PAPER_HI, pos, perfect ? 240 : 170, (o,u) => { const s = lerp(3, 1.2, u)*big; o.scale.set(s,s,1); o.material.opacity = 1 - u; });
   spriteFx(TEX_INKBURST, INK, pos, perfect ? 460 : 320, (o,u) => { const s = (.5 + easeOut(u)*2.3)*big; o.scale.set(s,s,1); o.material.rotation = rot; o.material.opacity = u < .45 ? 1 : 1 - (u - .45)/.55; });
   if (perfect) spriteFx(TEX_RING, GOLD, pos, 420, (o,u) => { const s = (.4 + easeOut(u)*3)*big; o.scale.set(s,s,1); o.material.opacity = 1 - u; });
@@ -4221,18 +4220,41 @@ function land(f){
   if (f.state === 'jump') enter(f, 'land', 150);
   else if (f.state === 'windup' && f.atk && f.atk.air){ groundShock(f.pos.x, f.pos.z, INK, 1.8, 380); shake(.12); }
 }
+/* ---- combos: every weapon has its own chain. The first blow is whatever you swing; if it lands, a click in the recovery
+   follows with the weapon's second link, then the third (the twin blades have four). The last link is the weapon's own big
+   move, quick. A miss, a parry, a dodge or a late click breaks the chain and the next blow starts it again. ----
+   ang: where the link comes from, given where the last one came from: mirror (the other side), diag (high, the other
+   side), flat (level, the other side), low (rising from below, the other side). thrust: a straight drive; cut: no lunge. */
+const COMBOS = {
+  katana:    [null, { name:'Kesa-giri', ang:'diag' }, { name:'Tsuki', thrust:true, dmg:1.3, reach:.25, wind:.8 }],
+  longsword: [null, { name:'Zwerchhau', ang:'flat' }, { name:'Oberhau', heavy:true, dmg:.85, wind:.55 }],
+  zwei:      [null, { name:'Rising wheel', ang:'low' }, { name:'Windmill', heavy:true, dmg:.8, wind:.55 }],
+  dual:      [null, { name:'Off hand', ang:'mirror' }, { name:'Rising cross', ang:'low' }, { name:'Storm', heavy:true, dmg:.75, wind:.55 }],
+  rapier:    [null, { name:'Flick cut', ang:'diag', cut:true }, { name:'Flèche', heavy:true, dmg:.9, wind:.5 }],
+  spear:     [null, { name:'Low sweep', ang:'low' }, { name:'Piercing drive', heavy:true, dmg:.85, wind:.55 }],
+  kusari:    [null, { name:'Sickle return', ang:'mirror' }, { name:'Chain lash', heavy:true, dmg:.8, wind:.6 }],
+};
+function comboAngle(kind, p){
+  const fromRight = Math.cos(p) >= 0, j = srand(-.12, .12);
+  if (kind === 'diag') return (fromRight ? 135 : 45)*DEG + j;
+  if (kind === 'flat') return (fromRight ? 180 : 0)*DEG + j;
+  if (kind === 'low') return (fromRight ? -135 : -45)*DEG + j;
+  return wrap(p + Math.PI + srand(-.25, .25));
+}
 function tryAttack(f, angle, heavy, opts){
   if (G.gun && f.gun === 'pistol') return false;
   const combo = canCombo(f);
   if (!canAct(f) && !combo) return false;
   const rip = T < f.riposteUntil;
   let dur = (heavy ? f.w.windH : f.w.windL) * S.speed;
-  let n = 1;
+  let n = 1, link = null;
   if (combo){
-    // the next cut starts where the last one ended: from the opposite side, quicker
+    // the next link of this weapon's chain: where it comes from and what it is
     n = (f.atk.combo || 1) + 1;
-    angle = wrap(f.atk.angle + Math.PI + srand(-.25, .25)); heavy = false;
-    dur = f.w.windL*S.speed*(f.wkey === 'dual' ? .74 : .62);
+    link = (COMBOS[f.wkey] || [])[n - 1] || { ang:'mirror' };
+    angle = comboAngle(link.ang, f.atk.angle); heavy = !!link.heavy;
+    dur = heavy ? f.w.windH*S.speed*(link.wind || .55) : f.w.windL*S.speed*(f.wkey === 'dual' ? .74 : .62)*(link.wind || 1);
+    if (link.thrust) angle = srand(-.2, .2);
   }
   else if (rip) dur *= .6;
   else if (T < f.rallyUntil) dur *= tempo();   // counters inside a rally get quicker with every clash
@@ -4242,9 +4264,10 @@ function tryAttack(f, angle, heavy, opts){
   f.rallyUntil = 0;
   spend(f, heavy ? 7 : (combo ? 5 : 3));
   f.atk = { angle:wrap(angle), heavy, riposte:rip, resolved:false, contact:false, feinted:false, feintT:0, dodged:false,
-    live: !!(opts && opts.live), combo:n, dmgMul: n === 1 ? 1 : (n === (f.w.comboMax || 3) ? 1.25 : .9) };
+    live: !!(opts && opts.live) && !link, combo:n, dmgMul: (n === 1 ? 1 : (n === (f.w.comboMax || 3) ? 1.25 : .9))*(link && link.dmg || 1),
+    thrustLink: !!(link && link.thrust), noLunge: !!(link && link.cut), reach: link && link.reach || 0, link: link ? link.name : '' };
   if (T < (f.opp.blindUntil || 0) && f.opp.blindBy === f){ f.atk.flank = true; f.atk.dmgMul *= 1.15; }
-  if (combo && fight() && f.isPlayer){ f.stats.combos++; setTiming(`<b class="mid">COMBO ${n}</b>${n === (f.w.comboMax || 3) ? 'final link · harder' : 'click once more'}`); }
+  if (combo && fight() && f.isPlayer){ f.stats.combos++; setTiming(`<b class="mid">COMBO ${n} · ${link.name}</b>${n === (f.w.comboMax || 3) ? 'the last link' : 'land it and click once more'}`); }
   f.riposteUntil = 0;
   enter(f, 'windup', dur);
   glintFx(f, heavy, heavy ? dur : 230);
@@ -4500,7 +4523,7 @@ function hit(a, b, over){
   // the camera is shoved along the blow
   const rx = -kb.z, rz = kb.x, travel = -Math.cos(atk.angle);
   camKickX += (kb.x*.5 + rx*travel)*(atk.heavy ? .22 : .12); camKickZ += (kb.z*.5 + rz*travel)*(atk.heavy ? .22 : .12); camKickY += -Math.sin(atk.angle)*(atk.heavy ? .12 : .06);
-  if (atk.heavy || atk.riposte) impact(atk.heavy ? 75 : 45, atk.heavy);
+  if (atk.heavy || atk.riposte) impact(atk.heavy ? 60 : 45);
   burst(cp, INK, atk.heavy ? 20 : 12, atk.heavy ? 5 : 4);
   streaks(cp, INK, atk.heavy ? 40 : 22, atk.heavy ? 9 : 7, 1);
   if (!atk.ranged) slashFx(cp, a.isPlayer ? atk.angle : mirror(atk.angle), b.isPlayer || atk.heavy ? RED : (atk.riposte ? GOLD : INK), atk.heavy);
@@ -4577,7 +4600,7 @@ function parrySuccess(d, a, diff, tolDeg, swept){
     const D = DIFFS[G.phase === 'menu' ? 'normal' : S.diff];
     d.rallyGo = !!d.bot && srnd() < D.rally; d.rallyAt = T + srand(20, 90);
   }
-  enter(d, 'idle'); d.v.goldT = performance.now();
+  enter(d, 'idle');
   // freeze both blades in the crossed position for the hit-stop, then let them spring apart
   a.pose.alpha = atk.angle; a.pose.phi = 64*DEG; a.pose.lean = -.2;
   d.pose.alpha = wrap(d.parryAngle + Math.PI/2); d.pose.phi = 16*DEG; d.pose.off = 1; d.pose.lean = .05;
@@ -6919,7 +6942,7 @@ function poseFighter(f, dt, now){
     else if (a && !a.art && f.state === 'recovery'){ const q = smooth(u); alpha = lerpAng(a.angle, f.guardAngle, q); phi = lerp(87, 78, q)*DEG; v.atkThrust = lerp(1.2, 0, q); lean = lerp(-.26, 0, u); }
     else if (f.state === 'idle' || f.state === 'crouch' || f.state === 'dash' || f.state === 'jump') phi = Math.max(phi, 78*DEG);
   }
-  if (f.w && !f.w.thrust && animOf(f).lunge && a && !a.heavy && !a.art && !a.qte){
+  if (f.w && !f.w.thrust && (animOf(f).lunge || (a && a.thrustLink)) && a && !a.heavy && !a.art && !a.qte && !a.noLunge){
     if (f.state === 'windup' || f.state === 'hold'){ const q = f.state === 'hold' ? 1 : loadCurve(u); alpha = a.angle; phi = lerp(GP, 50, q)*DEG; v.atkThrust = -.34*q; lean = .12*q; drop = .05*q; twist = 0; }
     else if (f.state === 'active'){ const q = cutCurve(u, .8, 1.6); alpha = a.angle; phi = lerp(50, 74, Math.min(1, q*1.25))*DEG; v.atkThrust = lerp(-.34, 1.05, q); lean = lerp(.12, -.26, smooth(Math.min(1, u/CONTACT))); drop = lerp(.05, .1, smooth(Math.min(1, u/CONTACT))); snap = true; }
     else if (f.state === 'recovery'){ const q = smooth(clamp((u - .12)/.88, 0, 1)); alpha = lerpAng(a.angle, f.guardAngle, q); phi = lerp(74, GP, q)*DEG; v.atkThrust = lerp(1.05, 0, q); lean = lerp(-.26, 0, q); drop = lerp(.1, 0, q); }
@@ -7472,8 +7495,7 @@ function updateTrail(f){
   const sweeping = f.state === 'parry' && f.prevAlpha !== null && angDiff(f.pose.alpha, f.prevAlpha) > 1.2*DEG;
   const twirl = (T - (f.twirlT || -1e9) < 320 && (f.state === 'feintRecover' || f.state === 'idle')) || (Math.abs(f.twVel || 0) > 7 && canAct(f));
   const spinning = (f.state === 'spin' && f.t > SPIN_DUR*.2 && f.t < SPIN_DUR*.85) || (f.state === 'windup' && f.atk && f.atk.spin && f.spinFrom < .8 && f.t < f.dur*.7) || (f.state === 'art' && artTrail(f));
-  const goldK = performance.now() - (v.goldT || -1e9) < 420;
-  const qx = G.qte && G.qte.ex, emit = goldK || spinning || v.hTrail || v.ripK || (f.state === 'qte' && qx && qx.att === f && G.qte.t - qx.t0 < QTE_EX*.62) || f.state === 'active' || (f.state === 'recovery' && f.t < 90) || sweeping || twirl || (G.phase === 'intro' && f.drawing);
+  const qx = G.qte && G.qte.ex, emit = spinning || v.hTrail || v.ripK || (f.state === 'qte' && qx && qx.att === f && G.qte.t - qx.t0 < QTE_EX*.62) || f.state === 'active' || (f.state === 'recovery' && f.t < 90) || sweeping || twirl || (G.phase === 'intro' && f.drawing);
   // the left twin blade's cut is the mirror of the right rig's
   const mir = f.wkey === 'dual' && (v.leftK || 0) > .5;
   const sample = () => { const bp = new THREE.Vector3(), tp = new THREE.Vector3(); v.base.getWorldPosition(bp); v.tip.getWorldPosition(tp);
@@ -7502,7 +7524,7 @@ function updateTrail(f){
   }
   const n = tr.pts.length;
   if (n < 2){ tr.geo.setDrawRange(0, 0); return; }
-  const col = goldK ? tr.gold : (f.state === 'parry' || f.state === 'parryRecover' || twirl || f.state === 'spin' || v.hTrail || v.ripK) ? tr.steel : (f.atk && f.atk.riposte ? tr.gold : (f.atk && f.atk.heavy ? tr.heat : tr.color));
+  const col = (f.state === 'parry' || f.state === 'parryRecover' || twirl || f.state === 'spin' || v.hTrail || v.ripK) ? tr.steel : (f.atk && f.atk.riposte ? tr.gold : (f.atk && f.atk.heavy ? tr.heat : tr.color));
   for (let i=0;i<n;i++){
     const p = tr.pts[i], u = i/(n - 1);
     // brush pressure: the root of the stroke creeps toward the tip at the tail (it thins to a point) and a touch at the head
@@ -8125,7 +8147,7 @@ const DOJO_LESSONS = [
   { t:'Dodge', d:'Just before the blow lands, roll with Space or dash with Shift. A dash only works at the last moment; a roll is more forgiving but takes longer.', s:{ mode:'attack', slow:1.4 }, goal:'dodge', need:3 },
   { t:'Duck and jump', d:'Duck under side cuts with C. Jump over low cuts with R. Twice each.', s:{ mode:'attack', slow:1.45, angles:'duckjump' }, goal:'duckjump', need:4 },
   { t:'Heavy attack and feint', d:'Hold left click: after 0.35 s it becomes a heavy attack (red ring). Land one heavy hit. Then cancel an attack with right-click: a feint.', s:{ mode:'dummy' }, goal:'heavyfeint', need:2 },
-  { t:'Combo', d:'Click again right after a hit: the next cut comes from the other side. Take the chain to the end (4 links with Twin Blades, 3 with the rest).', s:{ mode:'dummy' }, goal:'combo', need:1 },
+  { t:'Combo', d:'Click again right after a hit: every weapon has its own chain, and the last link is its big move. A miss or a parry breaks it. Take the chain to the end (4 links with Twin Blades, 3 with the rest).', s:{ mode:'dummy' }, goal:'combo', need:1 },
   { t:'Blind spot', d:'The sensei parries everything from the front. Dash to their side (Shift + A or D) and strike at once: they cannot meet a blow from the flank.', s:{ mode:'parry' }, goal:'flank', need:2 },
   { t:'Weapon art', d:'Keep holding your heavy attack. When the inner ring meets the outer ring and turns gold, let go: your weapon art comes out. Land it once.', s:{ mode:'dummy' }, goal:'art', need:1 },
   { t:'Versus art: Katana', d:'The Single Cut is stopped only by a perfect parry, a dash or a roll. Watch the sensei\'s ring turn gold and be ready.', s:{ mode:'art', weapon:'katana' }, goal:'counter', need:2 },
