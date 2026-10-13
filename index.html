@@ -4226,12 +4226,12 @@ function land(f){
    ang: where the link comes from, given where the last one came from: mirror (the other side), diag (high, the other
    side), flat (level, the other side), low (rising from below, the other side). thrust: a straight drive; cut: no lunge. */
 const COMBOS = {
-  katana:    [null, { name:'Kesa-giri', ang:'diag' }, { name:'Tsuki', thrust:true, dmg:1.3, reach:.25, wind:.8 }],
+  katana:    [null, { name:'Kaeshi-giri', ang:'diag' }, { name:'Tsuki', thrust:true, dmg:1.3, reach:.25, wind:.8 }],
   longsword: [null, { name:'Zwerchhau', ang:'flat' }, { name:'Oberhau', heavy:true, dmg:.85, wind:.55 }],
-  zwei:      [null, { name:'Rising wheel', ang:'low' }, { name:'Windmill', heavy:true, dmg:.8, wind:.55 }],
-  dual:      [null, { name:'Off hand', ang:'mirror' }, { name:'Rising cross', ang:'low' }, { name:'Storm', heavy:true, dmg:.75, wind:.55 }],
+  zwei:      [null, { name:'Wheel cut', ang:'low' }, { name:'Windmill', heavy:true, dmg:.8, wind:.55 }],
+  dual:      [null, { name:'Off hand', ang:'mirror' }, { name:'Cross cut', ang:'low' }, { name:'Storm', heavy:true, dmg:.75, wind:.55 }],
   rapier:    [null, { name:'Flick cut', ang:'diag', cut:true }, { name:'Flèche', heavy:true, dmg:.9, wind:.5 }],
-  spear:     [null, { name:'Low sweep', ang:'low' }, { name:'Piercing drive', heavy:true, dmg:.85, wind:.55 }],
+  spear:     [null, { name:'Sweep', ang:'low' }, { name:'Piercing drive', heavy:true, dmg:.85, wind:.55 }],
   kusari:    [null, { name:'Sickle return', ang:'mirror' }, { name:'Chain lash', heavy:true, dmg:.8, wind:.6 }],
 };
 function comboAngle(kind, p){
@@ -4252,9 +4252,12 @@ function tryAttack(f, angle, heavy, opts){
     // the next link of this weapon's chain: where it comes from and what it is
     n = (f.atk.combo || 1) + 1;
     link = (COMBOS[f.wkey] || [])[n - 1] || { ang:'mirror' };
-    angle = comboAngle(link.ang, f.atk.angle); heavy = !!link.heavy;
+    // a player aims every link like the first blow: it comes from wherever the dial points and the move turns to match.
+    // The bot keeps the weapon's usual line through the chain.
+    const free = !!f.human;
+    angle = free ? wrap(angle) : comboAngle(link.ang, f.atk.angle); heavy = !!link.heavy;
     dur = heavy ? f.w.windH*S.speed*(link.wind || .55) : f.w.windL*S.speed*(f.wkey === 'dual' ? .74 : .62)*(link.wind || 1);
-    if (link.thrust) angle = srand(-.2, .2);
+    if (link.thrust && !free) angle = srand(-.2, .2);
   }
   else if (rip) dur *= .6;
   else if (T < f.rallyUntil) dur *= tempo();   // counters inside a rally get quicker with every clash
@@ -4265,9 +4268,9 @@ function tryAttack(f, angle, heavy, opts){
   spend(f, heavy ? 7 : (combo ? 5 : 3));
   f.atk = { angle:wrap(angle), heavy, riposte:rip, resolved:false, contact:false, feinted:false, feintT:0, dodged:false,
     live: !!(opts && opts.live) && !link, combo:n, dmgMul: (n === 1 ? 1 : (n === (f.w.comboMax || 3) ? 1.25 : .9))*(link && link.dmg || 1),
-    thrustLink: !!(link && link.thrust), noLunge: !!(link && link.cut), reach: link && link.reach || 0, link: link ? link.name : '' };
+    thrustLink: !!(link && link.thrust), noLunge: !!(link && link.cut), reach: link && link.reach || 0, link: link ? link.name : '', steer: !!(link && f.human) };
   if (T < (f.opp.blindUntil || 0) && f.opp.blindBy === f){ f.atk.flank = true; f.atk.dmgMul *= 1.15; }
-  if (combo && fight() && f.isPlayer){ f.stats.combos++; setTiming(`<b class="mid">COMBO ${n} · ${link.name}</b>${n === (f.w.comboMax || 3) ? 'the last link' : 'land it and click once more'}`); }
+  if (combo && fight() && f.isPlayer){ f.stats.combos++; setTiming(`<b class="mid">COMBO ${n} · ${link.name}</b>${n === (f.w.comboMax || 3) ? 'the last link · aim it anywhere' : 'aim it anywhere · land it and click once more'}`); }
   f.riposteUntil = 0;
   enter(f, 'windup', dur);
   glintFx(f, heavy, heavy ? dur : 230);
@@ -6379,7 +6382,7 @@ function playerControl(p){
   }
   if (p.state === 'parry') steerParry(p, c.g);
   // early in the windup the swing direction still follows the drag
-  if (p.state === 'windup' && p.atk && p.atk.live && p.t < p.dur*.45 && c.lmb && c.dr !== 99) p.atk.angle = c.dr;
+  if (p.state === 'windup' && p.atk && (p.atk.live || p.atk.steer) && p.t < p.dur*.45 && c.lmb && c.dr !== 99) p.atk.angle = c.dr;
   if (p.state === 'bind' || p.state === 'qte'){ p.moveIn.x = p.moveIn.z = 0; p.buf = null; return; }
   if (c.cr && p.state === 'idle' && !p.buf) tryCrouch(p);
   else if (!c.cr && p.state === 'crouch') standUp(p);
