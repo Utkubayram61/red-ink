@@ -706,7 +706,7 @@ if (!['high', 'balanced', 'fast'].includes(S.gfx)) S.gfx = DEFAULTS.gfx;
 // the timing rules, speed, sensitivity and volume are fixed at their defaults; the player only sets difficulty and the toggles
 for (const k of ['window', 'tol', 'sweep', 'whiff', 'speed', 'sens', 'vol']) S[k] = DEFAULTS[k];
 if (S.foeLook !== 'random') S.foeLook = 'auto';
-if (S.arena !== 'random' && !['kopru','gul','ay'].includes(S.arena)) S.arena = 'random';
+if (S.arena !== 'random' && !['kopru','gul','ay','sakura'].includes(S.arena)) S.arena = 'random';
 const save = () => { try { localStorage.setItem('aci-duellosu-v1', JSON.stringify(S)); } catch(e) {} };
 /* Anything that decides the outcome draws from srnd(): online it is a seeded generator both machines step in lockstep;
    offline it is plain Math.random. Purely visual randomness (particles, sounds, paint) keeps using rand()/Math.random. */
@@ -743,10 +743,11 @@ const camLook = new THREE.Vector3(0,1.1,0);
 let composer = null, gradePass = null;
 const InkShader = {
   uniforms: { tDiffuse:{ value:null }, tND:{ value:null }, uTime:{ value:0 }, uSat:{ value:1 }, uColor:{ value:0 }, uPaint:{ value:0 }, uImpact:{ value:0 }, uRes:{ value:new THREE.Vector2(1, 1) },
-    uFar:{ value:220 }, uDof:{ value:0 }, uFocus:{ value:5 }, uEdges:{ value:1 }, uGlow:{ value:1 } },
+    uFar:{ value:220 }, uDof:{ value:0 }, uFocus:{ value:5 }, uEdges:{ value:1 }, uGlow:{ value:1 },
+    uSh:{ value:new THREE.Vector3(.76, .86, 1.06) }, uHi:{ value:new THREE.Vector3(1.05, 1.0, .9) }, uGlowK:{ value:.22 }, uGSat:{ value:1.18 }, uGlowT:{ value:.8 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
   fragmentShader: `
-    uniform sampler2D tDiffuse, tND; uniform float uTime, uSat, uColor, uPaint, uImpact, uFar, uDof, uFocus, uEdges, uGlow; uniform vec2 uRes; varying vec2 vUv;
+    uniform sampler2D tDiffuse, tND; uniform float uTime, uSat, uColor, uPaint, uImpact, uFar, uDof, uFocus, uEdges, uGlow, uGlowK, uGSat, uGlowT; uniform vec2 uRes; uniform vec3 uSh, uHi; varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)))*43758.5453); }
     float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0 - 2.0*f);
       return mix(mix(hash(i), hash(i + vec2(1.0,0.0)), f.x), mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), f.x), f.y); }
@@ -790,8 +791,8 @@ const InkShader = {
     // warm light, cool shadow: split toning, a little more saturation and an S-curve, like an illustrated cel
     vec3 grade(vec3 c){
       float l = dot(c, vec3(.299, .587, .114));
-      c = mix(vec3(l), c, 1.18);
-      vec3 sh = vec3(.76, .86, 1.06), hi = vec3(1.05, 1.0, .9);
+      c = mix(vec3(l), c, uGSat);
+      vec3 sh = uSh, hi = uHi;
       c *= mix(sh, hi, smoothstep(.12, .78, l));
       c = c*c*(3.0 - 2.0*c)*.3 + c*.7;
       c = mix(c, c*.92, smoothstep(.75, 1.0, l));                      // keep the brightest ground from burning out
@@ -847,9 +848,9 @@ const InkShader = {
         if (uGlow > .5) for (int i=0;i<12;i++){
           float a = float(i)*.5236, rr = (i < 6 ? 9.0 : 19.0);
           vec3 t = texture2D(tDiffuse, vUv + vec2(cos(a + rr), sin(a + rr))*rr/uRes).rgb;
-          float ts = max(t.r, max(t.g, t.b)) - min(t.r, min(t.g, t.b)); glow += max(t - .8, 0.0)*(.4 + ts*1.6);   // warm, saturated light blooms; pale stone does not
+          float ts = max(t.r, max(t.g, t.b)) - min(t.r, min(t.g, t.b)); glow += max(t - uGlowT, 0.0)*(.4 + ts*1.6);   // warm, saturated light blooms; pale stone does not
         }
-        pg += glow*vec3(1.0, .82, .55)*.22;
+        pg += glow*vec3(1.0, .82, .55)*uGlowK;
         col = mix(col, clamp(pg, 0.0, 1.0), uPaint);
         keep = max(keep, uPaint);
         lineC = mix(ink, vec3(.2, .11, .07), uPaint);
@@ -888,12 +889,16 @@ const ND_SHADER = {
     void main(){
       #include <clipping_planes_fragment>
       vec3 n = normalize(vN); if (!gl_FrontFacing) n = -n;
+      #ifdef FLATN
+      n = vec3(0.0, 0.0, 1.0);   // a soft mass (a canopy of blossom): it hides what is behind it but draws no lines of its own
+      #endif
       float d = clamp(vD/uFar, 0.0, .9999), hi = floor(d*255.0)/255.0, lo = fract(d*255.0);
       gl_FragColor = vec4(n.xy*.5 + .5, hi, lo);
     }`
 };
 let ndTarget = null;
 const ndUniforms = { uFar:{ value:220 } };
+const ND_FLAT = new THREE.ShaderMaterial({ vertexShader:ND_SHADER.vertexShader, fragmentShader:ND_SHADER.fragmentShader, uniforms:ndUniforms, defines:{ FLATN:1 } });
 function ndMaterial(m){
   if (Array.isArray(m)) return m.map(ndMaterial);
   if (m.userData.nd) { m.userData.nd.clippingPlanes = m.clippingPlanes; return m.userData.nd; }
@@ -907,7 +912,7 @@ function renderNormals(){
     if (!(o.isMesh || o.isPoints || o.isSprite || o.isLine)) return;
     const m = o.material, first = Array.isArray(m) ? m[0] : m;
     const edgeable = o.isMesh && o.visible && !o.userData.hull && !o.userData.noEdge && first && !first.transparent;
-    if (edgeable){ _ndSwap.push(o, m, 1); o.material = ndMaterial(m); }
+    if (edgeable){ _ndSwap.push(o, m, 1); o.material = o.userData.ndFlat ? ND_FLAT : ndMaterial(m); }
     else if (o.visible){ _ndSwap.push(o, m, 0); o.visible = false; }
   });
   const bg = scene.background, fog = scene.fog; scene.background = null; scene.fog = null;
@@ -1060,6 +1065,7 @@ const ARENAS = {
   gul:   { name:'Rose Garden',     line:'The roses bloomed every spring. He never came back.',                est:{ from:[-15, 7, -14], to:[-7, 2.4, -6], look:[0, 1.2, 0] } },
   kopru: { name:'Storm Bridge',    line:'This storm will take one of them.',                est:{ from:[9, 6, 24], to:[3.5, 2.6, 13], look:[0, 1.4, 0] } },
   ay:    { name:'Red Moon',        line:'The moon rose red the night he left. It is red again.',          est:{ from:[6, 9, 26], to:[2.5, 2.4, 12], look:[0, 4, -30] } },
+  sakura:{ name:'Sakura Garden',   line:'The blossoms fall whether anyone is watching or not.',           est:{ from:[5, 9, 27], to:[1.6, 2.6, 11], look:[0, 3, -30] } },
 };
 let arenaG = null, ARENA = { key:'gul', bounds:'circle', r:ARENA_R };
 const AR = { layers:[], rays:[], anim:[], grass:null, water:null, lanterns:[], puffs:[], clock:0, g:null, gust:[5000, 9000, .6] };
@@ -1437,6 +1443,187 @@ function arenaGul(){
   lightShafts(7, .62, .1, 2.4, .9);
   return { bg:0xCDBDAE, fog:[0xC9B8A8, 13, 62], hemi:[0xF6ECE2, 0x7A6C64, .56], sun:[0xFFE6C8, .82, 17, 8, 19], wind:[-3, .9, 1.2], weather:'rose', gust:[2200, 4500, 1.5] };
 }
+/* ---- the sakura garden at sunset ----
+   The rose garden's plan (a raked circle, a wall with a moon gate) under a low sun that sits behind the gate: a lake and
+   a castle on the far shore, cherry trees in bloom, black pines, stone lanterns, red banners. Everything is lit from
+   behind the duel, so the long shadows run toward the camera and the fighters are rimmed in warm light. */
+const SAKURA_SUN = [.18, .065, -1];
+const _UPV = new THREE.Vector3(0, 1, 0);
+function limb(a, b, r0, r1, mat, parent){
+  const d = new THREE.Vector3().subVectors(b, a), L = d.length();
+  const m = prop(new THREE.CylinderGeometry(r1, r0, L*1.04, 7), mat, (a.x + b.x)/2, (a.y + b.y)/2, (a.z + b.z)/2, parent);
+  m.quaternion.setFromUnitVectors(_UPV, d.normalize()); return m;
+}
+// a cherry tree: a leaning trunk forking into crooked boughs, each ending in a cloud of blossom
+function sakuraTree(x, z, s, bark, out){
+  const B = new THREE.Vector3(x, 0, z), lean = rand(0, TAU), T = new THREE.Vector3(x + Math.cos(lean)*.5*s, 2.1*s, z + Math.sin(lean)*.5*s);
+  const mid = new THREE.Vector3((x + T.x)/2 + rand(-.2, .2)*s, 1.05*s, (z + T.z)/2 + rand(-.2, .2)*s);
+  limb(B, mid, .34*s, .27*s, bark); limb(mid, T, .27*s, .2*s, bark);
+  const n = 5, a0 = rand(0, TAU);
+  for (let i=0;i<n;i++){
+    const a = a0 + i/n*TAU + rand(-.3, .3), L = rand(1.4, 2.1)*s;
+    const E = new THREE.Vector3(T.x + Math.cos(a)*L, T.y + rand(.5, 1.4)*s, T.z + Math.sin(a)*L);
+    const K = new THREE.Vector3((T.x + E.x)/2 + rand(-.25, .25)*s, (T.y + E.y)/2 + rand(.1, .4)*s, (T.z + E.z)/2 + rand(-.25, .25)*s);
+    limb(T, K, .17*s, .12*s, bark); limb(K, E, .12*s, .07*s, bark);
+    out.push([E.x, E.y, E.z, s*1.15, T.y], [K.x, K.y + .25*s, K.z, s*.7, T.y]);
+    for (const da of [-.6, .6]){
+      const L2 = rand(.8, 1.3)*s, E2 = new THREE.Vector3(E.x + Math.cos(a + da)*L2, E.y + rand(-.2, .5)*s, E.z + Math.sin(a + da)*L2);
+      limb(E, E.clone().lerp(E2, .75), .07*s, .045*s, bark); out.push([E2.x, E2.y, E2.z, s*.95, T.y]);
+    }
+  }
+  out.push([T.x, T.y + 1.3*s, T.z, s*1.3, T.y]);
+}
+// a black pine trained into flat cloud-pads, the way they are grown in a garden
+function niwakiPine(x, z, s, bark, needle){
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rand(0, TAU); arenaG.add(g);
+  const pts = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(.5*s, 1.1*s, .1*s), new THREE.Vector3(-.2*s, 2.1*s, -.1*s), new THREE.Vector3(.4*s, 3*s, .05*s)];
+  for (let i=0;i<3;i++) limb(pts[i], pts[i + 1], (.22 - i*.05)*s, (.17 - i*.05)*s, bark, g);
+  const pads = [[1.1, 1.4, .3, 1.0], [-1.0, 2.0, -.2, .9], [.9, 2.6, .4, .8], [-.5, 2.9, .5, .7], [.3, 3.3, -.1, .75]];
+  for (const [px, py, pz, ps] of pads){
+    const p = new THREE.Vector3(px*s, py*s, pz*s), root = pts[Math.min(3, Math.round(py/1.1))];
+    limb(root, p, .07*s, .05*s, bark, g);
+    const m = prop(new THREE.SphereGeometry(1, 10, 6), needle, p.x, p.y + .12*s, p.z, g); m.scale.set(1.25*ps*s, .34*ps*s, 1.05*ps*s);
+  }
+  return g;
+}
+// a kasuga stone lantern: base, shaft, the firebox with its paper windows glowing, a curled roof and a jewel on top
+function kasuga(x, z, lit, stone){
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rand(0, TAU); arenaG.add(g);
+  prop(new THREE.CylinderGeometry(.42, .5, .24, 6), stone, 0, .12, 0, g);
+  prop(new THREE.CylinderGeometry(.13, .17, 1.05, 8), stone, 0, .76, 0, g);
+  prop(new THREE.CylinderGeometry(.4, .3, .16, 6), stone, 0, 1.36, 0, g);
+  prop(new THREE.CylinderGeometry(.26, .26, .44, 6), stone, 0, 1.66, 0, g);
+  const glow = new THREE.MeshBasicMaterial({ color:0xE8B35A });
+  for (const r of [0, Math.PI/2]){ const w = prop(new THREE.BoxGeometry(.2, .24, .56), glow, 0, 1.68, 0, g); w.rotation.y = r; w.userData.noEdge = true; w.castShadow = false; }
+  const roof = prop(new THREE.ConeGeometry(.6, .34, 6), stone, 0, 2.03, 0, g); roof.scale.y = .9;
+  prop(new THREE.CylinderGeometry(.62, .56, .06, 6), stone, 0, 1.9, 0, g);
+  prop(new THREE.SphereGeometry(.09, 8, 6), stone, 0, 2.27, 0, g);
+  if (lit){ const pl = new THREE.PointLight(0xFFC67A, 1, 7, 2); pl.position.set(x, 1.7, z); arenaG.add(pl); AR.lanterns.push({ pl, ph:rand(0, TAU), base:1 }); }
+  return g;
+}
+// the far shore, painted: the backdrop's u runs round the cylinder, so things are placed by their bearing from the centre
+function sakuraBackdrop(){
+  const sun = SAKURA_SUN, su = ((Math.atan2(sun[0], sun[2])/TAU) % 1 + 1) % 1;
+  const W = 2048, H = 768, Y0 = -6, HH = 32, cy = wy => (1 - (wy - Y0)/HH)*H;
+  const du = x => { let d = Math.abs(x/W - su); return Math.min(d, 1 - d); };
+  // far: the lake, the sun's road across it, and pale mountains on the other side, hazed with light near the sun
+  const far = (() => { const [c, g] = pcanvas(W, H);
+    const hz = cy(2.45);
+    const wg = g.createLinearGradient(0, hz, 0, H); wg.addColorStop(0, '#FFB27E'); wg.addColorStop(.25, '#E58A86'); wg.addColorStop(1, '#6E4C7E'); g.fillStyle = wg; g.fillRect(0, hz, W, H - hz);
+    for (let i=0;i<1400;i++){ const y = hz + Math.pow(Math.random(), 1.6)*(H - hz), x = rand(0, W), l = rand(10, 60)*(1 - (y - hz)/(H - hz)*.6);
+      const near = Math.exp(-Math.pow(du(x)*W/(28 + (y - hz)*.5), 2)); g.globalAlpha = rand(.08, .25) + near*.6;
+      g.fillStyle = near > .3 ? '#FFF0C8' : (Math.random() < .5 ? '#FFC8A0' : '#5E4272'); g.fillRect(x - l/2, y, l, rand(1, 2.2)); }
+    g.globalAlpha = 1;
+    for (const [base, amp, seed, col] of [[hz - 4, 150, 3.3, '#B88AAE'], [hz + 2, 95, 7.1, '#9A709E']]){
+      const pts = ridgeLine(W, base, amp, seed, .7).map(([x, y]) => [x, base - (base - y)*(.25 + .75*Math.min(1, du(x)/.12))]);
+      g.beginPath(); g.moveTo(0, hz + 2); for (const p of pts) g.lineTo(p[0], p[1]); g.lineTo(W, hz + 2); g.closePath();
+      const gr = g.createLinearGradient(0, base - amp, 0, hz); gr.addColorStop(0, col); gr.addColorStop(1, '#F2A890'); g.fillStyle = gr; g.fill(); }
+    for (const x of [su*W - W, su*W, su*W + W]){ const gr = g.createRadialGradient(x, hz - 10, 0, x, hz - 10, 520); gr.addColorStop(0, 'rgba(255,214,150,.75)'); gr.addColorStop(.4, 'rgba(255,170,120,.25)'); gr.addColorStop(1, 'rgba(255,160,120,0)'); g.fillStyle = gr; g.fillRect(x - 520, 0, 1040, hz + 6); }
+    return ptex(c, true); })();
+  // near: dark wooded hills either side of the water, black pines on them, the castle on its rock to the right of the sun
+  const near = (() => { const [c, g] = pcanvas(W, H);
+    const hz = cy(2.3), cu = su - .05;
+    const pts = ridgeLine(W, hz, 80, 5.4, .6).map(([x, y]) => { const k = Math.min(1, Math.max(0, (du(x) - .045)/.09)); return [x, hz - (hz - y + 40)*k*(.6 + .4*Math.min(1, du(x)/.25))]; });
+    g.beginPath(); g.moveTo(0, H); for (const p of pts) g.lineTo(p[0], p[1]); g.lineTo(W, H); g.closePath();
+    const gr = g.createLinearGradient(0, hz - 200, 0, H); gr.addColorStop(0, '#5A4478'); gr.addColorStop(.5, '#3E3058'); gr.addColorStop(1, '#2E2444'); g.fillStyle = gr; g.fill();
+    g.save(); g.globalCompositeOperation = 'destination-out';
+    for (let x=0; x<W; x+=2){ const k = Math.min(1, Math.max(0, (du(x) - .045)/.09)); if (k < 1){ g.globalAlpha = 1 - k; g.fillRect(x, hz - 3, 2, H - hz + 3); } }
+    g.restore();
+    for (let i=0;i<70;i++){ const x = rand(0, W); if (du(x) < .06) continue; const q = pts[Math.floor(x/4)]; paintPine(g, x, q[1] + 10, rand(.4, .9), Math.random() < .5 ? '#2C2240' : '#352A4E'); }
+    // the castle: a stone base on the hill, four storeys of roofs, a few lit windows
+    const X = ((cu % 1) + 1) % 1*W, q = pts[Math.floor(X/4)], base = Math.min(q[1], hz - 30) + 6, sc = .62;
+    g.fillStyle = '#2E2444';
+    g.beginPath(); g.moveTo(X - 70*sc, base + 20); g.lineTo(X - 52*sc, base - 40*sc); g.lineTo(X + 52*sc, base - 40*sc); g.lineTo(X + 70*sc, base + 20); g.fill();
+    let y = base - 40*sc;
+    const roof = (x, yy, w, h, curl) => { g.beginPath(); g.moveTo(x - w/2 - curl, yy + curl*.3); g.quadraticCurveTo(x - w/2 + w*.08, yy, x - w*.32, yy - h); g.lineTo(x + w*.32, yy - h); g.quadraticCurveTo(x + w/2 - w*.08, yy, x + w/2 + curl, yy + curl*.3); g.closePath(); g.fill(); };
+    for (let k=0;k<4;k++){ const w = (104 - k*20)*sc, bh = 24*sc; g.fillStyle = '#3A2E54'; g.fillRect(X - w*.36, y - bh, w*.72, bh);
+      g.fillStyle = '#FFC070'; for (let j=0;j<3 - (k > 1 ? 1 : 0);j++) if (Math.random() < .6) g.fillRect(X - w*.25 + j*w*.22, y - bh*.62, 4*sc, 6*sc);
+      g.fillStyle = '#251D38'; roof(X, y - bh, w, 12*sc, 7*sc); y -= bh + 12*sc; }
+    g.fillRect(X - 2*sc, y - 16*sc, 4*sc, 16*sc);
+    return ptex(c, true); })();
+  const m1 = backdrop(far, 82, HH, Y0 + HH/2, .96, -9); m1.rotation.y = 0;
+  const m2 = backdrop(near, 66, HH, Y0 + HH/2, .9, -8); m2.rotation.y = 0;
+}
+function arenaSakura(){
+  const d = new THREE.Object3D();
+  // the raked circle, warm in the low light
+  const gt = (() => { const N = 1024, [c, g] = pcanvas(N, N); g.fillStyle = '#D9C2AA'; g.fillRect(0, 0, N, N);
+    for (let r=14; r<N/2; r+=11){ g.strokeStyle = `rgba(110,74,60,${rand(.2, .34)})`; g.lineWidth = rand(1.4, 2.4); g.beginPath(); g.arc(N/2, N/2, r + rand(-1, 1), 0, TAU); g.stroke();
+      g.strokeStyle = `rgba(255,246,228,${rand(.15, .3)})`; g.lineWidth = 1; g.beginPath(); g.arc(N/2, N/2, r + 3, 0, TAU); g.stroke(); }
+    for (let i=0;i<6000;i++){ g.fillStyle = Math.random() > .5 ? `rgba(255,251,240,${Math.random()*.08})` : `rgba(60,40,30,${Math.random()*.06})`; g.fillRect(Math.random()*N, Math.random()*N, 1 + Math.random()*2, 1 + Math.random()*2); }
+    return ptex(c); })();
+  const sand = new THREE.Mesh(new THREE.CircleGeometry(11.4, 72), toon(0xFFFFFF, { map:gt })); sand.rotation.x = -Math.PI/2; sand.position.y = .005; sand.receiveShadow = true; arenaG.add(sand);
+  // a ring of set stones round it
+  const ct = (() => { const N = 1024, [c, g] = pcanvas(N, 128); g.fillStyle = '#5A5058'; g.fillRect(0, 0, N, 128);
+    for (let row=0; row<3; row++) for (let x=-20; x<N; x+=rand(26, 44)){ const y = 8 + row*40 + rand(-4, 4), w = rand(22, 38), h = rand(28, 36);
+      g.fillStyle = ['#9A8E8C', '#8C8088', '#A89A92', '#7E7480'][Math.floor(Math.random()*4)]; g.beginPath(); g.ellipse(x + w/2, y + h/2, w/2, h/2, rand(-.3, .3), 0, TAU); g.fill();
+      g.fillStyle = 'rgba(255,240,220,.18)'; g.beginPath(); g.ellipse(x + w/2 - 3, y + h/2 - 4, w/3, h/4, 0, 0, TAU); g.fill(); }
+    const t = ptex(c, true); t.repeat.set(14, 1); return t; })();
+  { const geo = new THREE.RingGeometry(11.4, 12.7, 96, 1), uv = geo.attributes.uv, pos = geo.attributes.position;
+    for (let i=0;i<uv.count;i++){ const x = pos.getX(i), y = pos.getY(i); uv.setXY(i, (Math.atan2(y, x)/TAU + 1) % 1, (Math.hypot(x, y) - 11.4)/1.3); }
+    const ring = new THREE.Mesh(geo, toon(0xFFFFFF, { map:ct })); ring.rotation.x = -Math.PI/2; ring.position.y = .012; ring.receiveShadow = true; arenaG.add(ring); }
+  const lawn = new THREE.Mesh(new THREE.CircleGeometry(95, 48), toon(0xFFFFFF, { map:groundTex('#6E7A4E', 900) })); lawn.material.map.repeat.set(10, 10); lawn.rotation.x = -Math.PI/2; lawn.receiveShadow = true; arenaG.add(lawn);
+  makeGrass(6000, 24, { h:[.22, .45], inner:12.8, col:[.42, .52, .3] });
+  // the wall: white plaster between dark posts, a tiled ridge on top, and the moon gate behind the duel
+  const plaster = toon(0xEAD8BC), wood = toon(0x4A3428), tile = toon(0x3A3446), stone = toon(0x9C9488), bark = toon(0x3A2A28);
+  for (let i=0;i<40;i++){ const a = i/40*TAU; if (Math.abs(a - Math.PI*1.5) < .1) continue;
+    const g = new THREE.Group(); g.position.set(Math.cos(a)*23, 0, Math.sin(a)*23); g.rotation.y = -a + Math.PI/2; arenaG.add(g);
+    prop(new THREE.BoxGeometry(3.5, 1.6, .4), plaster, 0, .8, 0, g);
+    prop(new THREE.BoxGeometry(.2, 1.7, .5), wood, -1.72, .85, 0, g);
+    prop(new THREE.BoxGeometry(3.6, .1, .5), wood, 0, .3, 0, g);
+    const rf = prop(new THREE.BoxGeometry(3.66, .5, .5), tile, 0, 1.8, 0, g); rf.rotation.x = Math.PI/4;
+    prop(new THREE.BoxGeometry(3.66, .07, 1.0), tile, 0, 1.63, 0, g); }
+  const gs = new THREE.Shape(); gs.moveTo(-2.8, 0); gs.lineTo(2.8, 0); gs.lineTo(2.8, 3.5); gs.lineTo(-2.8, 3.5); gs.lineTo(-2.8, 0);
+  const hole = new THREE.Path(); hole.absarc(0, 1.8, 1.5, 0, TAU, true); gs.holes.push(hole);
+  prop(new THREE.ExtrudeGeometry(gs, { depth:.6, bevelEnabled:false, curveSegments:32 }), plaster, 0, 0, -23.3);
+  { const rf = prop(new THREE.BoxGeometry(6.3, .8, .8), tile, 0, 3.72, -23); rf.rotation.x = Math.PI/4; prop(new THREE.BoxGeometry(6.3, .08, 1.6), tile, 0, 3.5, -23); }
+  for (let k=0;k<3;k++) prop(new THREE.BoxGeometry(3.4 - k*.3, .14, .5), stone, 0, .07 + k*.14, -22 + (2 - k)*.45 - .2);
+  for (let k=0;k<6;k++){ const z = -20.6 + k*1.55, x = Math.sin(k*.9)*.45; const st = prop(new THREE.CylinderGeometry(rand(.42, .56), rand(.48, .6), .12, 7), stone, x, .03, z); st.rotation.y = rand(0, 3); }
+  // cherry trees in bloom: two framing the gate, more round the garden; all their blossom is one instanced cloud
+  const ends = [];
+  for (const [x, z, s] of [[-6.6, -19.8, 1.25], [6.9, -19.4, 1.15], [-15.5, -12, 1.2], [15.8, -12.8, 1.25], [-19.5, 3.5, 1.1], [19.2, 5, 1.15], [-13, 16.5, 1.1], [13.5, 15.8, 1.2], [-2, 20.5, 1]])
+    sakuraTree(x, z, s, bark, ends);
+  { const list = [];
+    const lowG = S.gfx === 'fast', dens = lowG ? 8 : 12;
+    for (const [ex, ey, ez, s, ty] of ends){ const n = Math.round(dens*s);
+      for (let k=0;k<n;k++){ const a = rand(0, TAU), r = Math.sqrt(Math.random())*1.15*s; list.push([ex + Math.cos(a)*r, ey + rand(-.35, .5)*s, ez + Math.sin(a)*r, s*rand(.65, 1.15), ty]); } }
+    const BL = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(lowG ? .62 : .58, lowG ? 0 : 1), toon(0xFFFFFF, { emissive:0x5A2E3E }), list.length), col = new THREE.Color();
+    const shades = [0xFFC2D2, 0xFAB0C6, 0xFFD4E0, 0xF6A4BE, 0xFFE4EC];
+    list.forEach(([x, y, z, s, ty], i) => { d.position.set(x, y, z); d.rotation.set(rand(0, 3), rand(0, 3), 0); d.scale.set(s*rand(.9, 1.3), s*rand(.7, 1), s*rand(.9, 1.3)); d.updateMatrix(); BL.setMatrixAt(i, d.matrix);
+      // the underside of the canopy sits in its own shade, the top catches the light
+      const up = clamp((y - ty)/2.6, 0, 1); col.setHex(shades[i % shades.length]).multiplyScalar(.72 + .34*up); BL.setColorAt(i, col); });
+    BL.castShadow = false; BL.receiveShadow = true; BL.userData.ndFlat = true; arenaG.add(BL);
+    AR.anim.push((dt, now) => { BL.position.x = Math.sin(now*.0009)*.03*(1 + WIND.gustNow*2); BL.position.z = Math.cos(now*.0007)*.02*(1 + WIND.gustNow); }); }
+  // trained black pines
+  const needle = toon(0x2F4A2C);
+  for (const [x, z, s] of [[-10.8, -19.6, 1.05], [11.2, -19.8, 1], [-19.8, -5.2, 1.1], [20.2, -3.6, 1], [-18.6, 11.6, .95], [18.4, 12.4, 1]]) niwakiPine(x, z, s, bark, needle);
+  // azaleas in flame-red mounds along the circle and under the wall, with the boulders that anchor them
+  const leafM = toon(0x34482C), azM = toon(0xD8302C), bushes = [];
+  for (let i=0;i<70;i++){ const a = rand(0, TAU), r = rand(13.2, 21.5); if (Math.abs(Math.cos(a)) < .2 && Math.sin(a) < -.8) continue; bushes.push([Math.cos(a)*r, Math.sin(a)*r, rand(.6, 1.2)]); }
+  const LM = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(.42, 0), leafM, bushes.length*4), AM = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(.2, 0), azM, bushes.length*9);
+  let li = 0, ai = 0;
+  for (const [x, z, s] of bushes){
+    for (let k=0;k<4;k++){ d.position.set(x + rand(-.5, .5)*s, (.3 + (k % 2)*.2)*s, z + rand(-.5, .5)*s); d.rotation.set(rand(0, 3), rand(0, 3), 0); d.scale.set(s*rand(.9, 1.3), s*rand(.6, .9), s*rand(.9, 1.3)); d.updateMatrix(); LM.setMatrixAt(li++, d.matrix); }
+    for (let k=0;k<9;k++){ const a = rand(0, TAU), rr = rand(.1, .6)*s; d.position.set(x + Math.cos(a)*rr, (.45 + rand(0, .35))*s, z + Math.sin(a)*rr); d.rotation.set(rand(0, 3), rand(0, 3), 0); d.scale.setScalar(rand(.8, 1.5)*s); d.updateMatrix(); AM.setMatrixAt(ai++, d.matrix); }
+  }
+  for (const m of [LM, AM]){ m.castShadow = true; m.receiveShadow = true; arenaG.add(m); }
+  const rockM = toon(0x7A7080);
+  for (let i=0;i<14;i++){ const a = i/14*TAU + rand(-.15, .15), r = rand(13, 14.8); if (Math.sin(a) < -.92) continue;
+    const s = rand(.55, 1.15), rk = prop(new THREE.DodecahedronGeometry(s, 0), rockM, Math.cos(a)*r, s*.28, Math.sin(a)*r); rk.scale.set(rand(1, 1.4), rand(.55, .8), rand(.9, 1.2)); rk.rotation.y = rand(0, 3); }
+  // stone lanterns round the circle, three of them lit; red banners with a white crest
+  [[.32, 1], [.68, 1], [.1, 0], [.9, 0], [.42, 0], [.58, 1]].forEach(([u, lit]) => { const a = -Math.PI/2 + (u - .5)*TAU*.8; kasuga(Math.cos(a)*13.1, Math.sin(a)*13.1, !!lit, stone); });
+  for (const [x, z] of [[-9.6, -16.4], [9.8, -16.2], [-16.6, 2.2], [16.8, 1.6]]) nobori(x, z, Math.atan2(-x, -z), 0xB8262A, 0xF4EEE2);
+  // fallen blossom: drifted against the stones, a few scattered across the raked sand
+  { const P = new THREE.InstancedMesh(new THREE.CircleGeometry(.09, 5), new THREE.MeshBasicMaterial({ color:0xFFFFFF, side:THREE.DoubleSide }), 1100), col = new THREE.Color(), sh = [0xF7B6C8, 0xFFD6E2, 0xF29CB8, 0xFFE8EE];
+    P.userData.noEdge = true;
+    for (let k=0;k<1100;k++){ const a = rand(0, TAU), r = k < 700 ? 11.4 - Math.pow(Math.random(), 2.4)*3 : rand(0, 11.2); d.position.set(Math.cos(a)*r, .013 + k*.000002, Math.sin(a)*r); d.rotation.set(-Math.PI/2, 0, rand(0, TAU)); d.scale.set(rand(.7, 1.3), rand(.5, .9), 1); d.updateMatrix(); P.setMatrixAt(k, d.matrix); P.setColorAt(k, col.setHex(sh[k % 4])); }
+    arenaG.add(P); }
+  sakuraBackdrop();
+  mistBanks(3, .1);
+  lightShafts(6, .5, .09, Math.atan2(SAKURA_SUN[2], SAKURA_SUN[0]), .7);
+  return { bg:0xE89A7C, fog:[0xE79A84, 24, 95], hemi:[0xD6C2E8, 0x5E4A6E, .58], sun:[0xFFC896, .9, 4.4, 9.5, -25], wind:[-1.6, .6, .9], weather:'sakura', gust:[3000, 6500, 1],
+    sky:{ sun:SAKURA_SUN, col:0xFFA060, k:1, cloud:1, lit:0xF49868, dark:0x5A4884 }, grade:{ sh:[.9, .84, 1.08], hi:[1.04, .99, .92], glow:.5, sat:1.04, glowT:.92 }, rim:.82 };
+}
 function arenaAy(){
   /* a flooded shrine under a blood moon: a ring of flagstones in still black water, a torii standing out in the lake
      against the moon, paper lanterns drifting on the water, red spider lilies on the stones, pale ash falling */
@@ -1555,12 +1742,13 @@ function setWeather(mode){
   if (WX.mesh){ scene.remove(WX.mesh); WX.mesh.geometry.dispose(); WX.mesh.material.dispose(); WX.mesh = null; }
   if (WX.rain){ scene.remove(WX.rain); WX.rain.geometry.dispose(); WX.rain.material.dispose(); WX.rain = null; }
   WX.mode = mode; WX.parts = [];
-  const spec = { moon:[240, .05, .04, 0xD8CCC6], ash:[170, .06, .04, 0x2A2622], seed:[140, .05, .05, 0xF2ECDF], snow:[520, .055, .055, 0xFFFFFF], leaf:[160, .2, .045, 0x3A3730], rain:[110, .05, .04, 0x2A2622], rose:[760, .085, .06, 0xB3261E] }[mode] || [170, .06, .04, 0x2A2622];
+  const spec = { moon:[240, .05, .04, 0xD8CCC6], ash:[170, .06, .04, 0x2A2622], seed:[140, .05, .05, 0xF2ECDF], snow:[520, .055, .055, 0xFFFFFF], leaf:[160, .2, .045, 0x3A3730], rain:[110, .05, .04, 0x2A2622], rose:[760, .085, .06, 0xB3261E], sakura:[900, .085, .065, 0xFFFFFF] }[mode] || [170, .06, .04, 0x2A2622];
   WX.n = spec[0];
   WX.mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(spec[1], spec[2]), new THREE.MeshBasicMaterial({ color:spec[3], side:THREE.DoubleSide }), WX.n);
   WX.mesh.frustumCulled = false; WX.mesh.userData.noEdge = true; scene.add(WX.mesh);
   if (mode === 'rose'){ const c = new THREE.Color(); for (let i=0;i<WX.n;i++){ const k = rand(.7, 1.15); WX.mesh.setColorAt(i, c.setRGB(k, k*rand(.9, 1.1), k)); } }
-  const fall = () => mode === 'snow' ? rand(.5, 1.1) : mode === 'leaf' ? rand(.6, 1.2) : mode === 'rose' ? rand(.25, .6) : rand(.35, .7);
+  if (mode === 'sakura'){ const c = new THREE.Color(), P = [0xFFD3E0, 0xF7B2C8, 0xFFE6EE, 0xF29CB8, 0xFFFFFF]; for (let i=0;i<WX.n;i++) WX.mesh.setColorAt(i, c.setHex(P[i % P.length])); }
+  const fall = () => mode === 'snow' ? rand(.5, 1.1) : mode === 'leaf' ? rand(.6, 1.2) : mode === 'rose' || mode === 'sakura' ? rand(.25, .6) : rand(.35, .7);
   WX.fall = fall;
   for (let i=0;i<WX.n;i++) WX.parts.push({ x:rand(-16, 16), y:rand(0, 10), z:rand(-16, 16), vy:fall(), sp:rand(1, 3), ph:rand(0, TAU), rx:rand(0, TAU), ry:rand(0, TAU), rest:0 });
   if (mode === 'rain'){
@@ -1571,9 +1759,33 @@ function setWeather(mode){
   }
 }
 const _dum = new THREE.Object3D();
+/* a few big blossoms drifting right past the lens, out of focus, at the edges of the frame */
+const FGP = { list:null, f:new THREE.Vector3(), r:new THREE.Vector3(), u:new THREE.Vector3() };
+function fgPetals(s, now){
+  const on = WX.mode === 'sakura' && S.style !== 'ink' && G.phase !== 'result';
+  if (!FGP.list){ if (!on) return;
+    const tex = canvasTex(64, 64, (g) => { const gr = g.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, 'rgba(255,214,226,.95)'); gr.addColorStop(.6, 'rgba(250,176,198,.75)'); gr.addColorStop(1, 'rgba(250,176,198,0)');
+      g.fillStyle = gr; g.beginPath(); g.ellipse(32, 32, 30, 18, 0, 0, TAU); g.fill(); });
+    FGP.list = [];
+    for (let i=0;i<7;i++){ const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, transparent:true, opacity:.85, depthWrite:false, depthTest:false, fog:false }));
+      sp.renderOrder = 20; sp.userData.noEdge = true; scene.add(sp);
+      FGP.list.push({ sp, x:(Math.random() < .5 ? -1 : 1)*rand(.55, 1.1), y:rand(-1, 1), d:rand(.9, 1.8), sp0:rand(.6, 1.4), ph:rand(0, TAU), sc:rand(.07, .13) }); } }
+  for (const p of FGP.list) p.sp.visible = on;
+  if (!on) return;
+  camera.getWorldDirection(FGP.f); FGP.r.crossVectors(FGP.f, camera.up).normalize(); FGP.u.crossVectors(FGP.r, FGP.f).normalize();
+  const asp = camera.aspect || 1.6, th = Math.tan(camera.fov*DEG/2);
+  for (const p of FGP.list){
+    p.y -= s*.22*p.sp0; p.x += s*(WIND.x*.04 + Math.sin(now*.0011*p.sp0 + p.ph)*.12);
+    if (p.y < -1.15){ p.y = 1.15; p.x = (Math.random() < .5 ? -1 : 1)*rand(.55, 1.1); p.d = rand(.9, 1.8); }
+    if (p.x > 1.15) p.x = -1.1; if (p.x < -1.15) p.x = 1.1;
+    p.sp.position.copy(camera.position).addScaledVector(FGP.f, p.d).addScaledVector(FGP.r, p.x*p.d*th*asp).addScaledVector(FGP.u, p.y*p.d*th);
+    p.sp.scale.set(p.sc*1.6, p.sc, 1); p.sp.material.rotation = Math.sin(now*.0013*p.sp0 + p.ph)*1.2 + p.ph;
+  }
+}
 function updatePetals(s, now){
+  fgPetals(s, now);
   if (!WX.mesh) return;
-  const mode = WX.mode, gu = 1 + WIND.gustNow*1.3, rose = mode === 'rose';
+  const mode = WX.mode, gu = 1 + WIND.gustNow*1.3, rose = mode === 'rose' || mode === 'sakura';
   const windX = WIND.x*.55*(.6 + .4*Math.sin(now*.0003))*gu, windZ = WIND.z*.55*gu;
   const cx = camera.position.x, cz = camera.position.z, wob = mode === 'leaf' ? 1.1 : rose ? 1.4 : .5;
   for (let i=0;i<WX.n;i++){
@@ -1641,7 +1853,10 @@ function buildArena(key){
   arenaG = new THREE.Group(); scene.add(arenaG);
   AR.layers = []; AR.rays = []; AR.anim = []; AR.grass = null; AR.lanterns = []; AR.puddle = null; AR.storm = null; AR.breath = false; AR.bolt = null;
   ARENA = { key, bounds:'circle', r:ARENA_R };
-  const cfg = ({ kopru:arenaKopru, gul:arenaGul, ay:arenaAy })[key]();
+  const cfg = ({ kopru:arenaKopru, gul:arenaGul, ay:arenaAy, sakura:arenaSakura })[key]();
+  const sk = SKY.material.uniforms, SX = cfg.sky;
+  sk.uSunK.value = SX ? SX.k : 0; sk.uCloudK.value = SX ? SX.cloud : 0;
+  if (SX){ sk.uSunDir.value.set(SX.sun[0], SX.sun[1], SX.sun[2]).normalize(); sk.uSunCol.value.setHex(SX.col); sk.uCloudLit.value.setHex(SX.lit); sk.uCloudDark.value.setHex(SX.dark); }
   scene.background = new THREE.Color(cfg.bg);
   scene.fog = new THREE.Fog(cfg.fog[0], cfg.fog[1], cfg.fog[2]);
   hemiLight.color.setHex(cfg.hemi[0]); hemiLight.groundColor.setHex(cfg.hemi[1]); hemiLight.intensity = cfg.hemi[2];
@@ -1661,12 +1876,38 @@ function buildArena(key){
 }
 /* ---- sky: a dome with a vertical gradient (zenith, horizon, and a ground tone below it) instead of one flat colour ---- */
 const SKY = new THREE.Mesh(new THREE.SphereGeometry(200, 32, 16), new THREE.ShaderMaterial({
-  uniforms:{ uTop:{ value:new THREE.Color() }, uHor:{ value:new THREE.Color() }, uLow:{ value:new THREE.Color() }, uFlash:{ value:0 } },
+  uniforms:{ uTop:{ value:new THREE.Color() }, uHor:{ value:new THREE.Color() }, uLow:{ value:new THREE.Color() }, uFlash:{ value:0 },
+    uSunDir:{ value:new THREE.Vector3(0, .1, -1).normalize() }, uSunCol:{ value:new THREE.Color(0xFFB070) }, uSunK:{ value:0 },
+    uCloudK:{ value:0 }, uCloudLit:{ value:new THREE.Color(0xFFB27A) }, uCloudDark:{ value:new THREE.Color(0x7A5A90) }, uTime:{ value:0 } },
   vertexShader:'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix*modelViewMatrix*vec4(position, 1.0); }',
-  fragmentShader:`uniform vec3 uTop, uHor, uLow; uniform float uFlash; varying vec3 vP;
-    void main(){ float h = normalize(vP).y;
+  fragmentShader:`uniform vec3 uTop, uHor, uLow, uSunDir, uSunCol, uCloudLit, uCloudDark; uniform float uFlash, uSunK, uCloudK, uTime; varying vec3 vP;
+    float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7)))*43758.5453); }
+    float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0 - 2.0*f);
+      return mix(mix(h2(i), h2(i + vec2(1.0, 0.0)), f.x), mix(h2(i + vec2(0.0, 1.0)), h2(i + vec2(1.0, 1.0)), f.x), f.y); }
+    float fbm(vec2 p){ float a = .5, r = 0.0; for (int i=0;i<5;i++){ r += a*vn(p); p = p*2.03 + vec2(1.7, 9.2); a *= .5; } return r; }
+    void main(){ vec3 d = normalize(vP); float h = d.y;
       vec3 c = h > 0.0 ? mix(uHor, uTop, pow(smoothstep(0.0, .75, h), .8)) : mix(uHor, uLow, smoothstep(0.0, -.25, h));
       c += (1.0 - abs(h))*.03;                                   // a faint glow along the horizon
+      if (uSunK > 0.0){
+        // the low sun: the horizon burns toward it, a wide warm glow, a tight bright one and the disc
+        float sd = max(dot(d, uSunDir), 0.0), az = max(dot(normalize(d.xz + 1e-4), normalize(uSunDir.xz)), 0.0);
+        c = mix(c, uSunCol, pow(az, 5.0)*(1.0 - smoothstep(-.05, .3, h))*.45*uSunK);
+        c += uSunCol*(pow(sd, 16.0)*.2 + pow(sd, 120.0)*.5)*uSunK;
+        c = mix(c, vec3(1.0, .96, .82), smoothstep(.9982, .9991, sd)*uSunK);
+      }
+      if (uCloudK > 0.0 && h > -.03){
+        // long bands of cloud across a flat sky plane, lit from below on the side that faces the sun
+        vec2 uv = d.xz/(h + .16)*1.3, sx = normalize(uSunDir.xz);
+        uv += vec2(uTime*.006, uTime*.002);
+        vec2 st = vec2(dot(uv, vec2(sx.y, -sx.x))*.42, dot(uv, sx)*1.25);
+        float n = fbm(st), n2 = fbm(st - vec2(0.0, .22));
+        float cov = smoothstep(.5, .72, n)*smoothstep(-.03, .07, h)*(1.0 - .55*smoothstep(.3, .8, h));
+        float toward = pow(max(dot(normalize(d.xz + 1e-4), sx), 0.0), 2.0);
+        float lit = clamp((n - n2)*5.0 + .45, 0.0, 1.0);
+        vec3 cc = mix(uCloudDark, uCloudLit, clamp(lit*.55 + toward*.55 - h*.4, 0.0, 1.0));
+        cc = mix(cc, uSunCol*1.15, pow(max(dot(d, uSunDir), 0.0), 18.0)*lit*.8);
+        c = mix(c, cc, cov*uCloudK);
+      }
       gl_FragColor = vec4(mix(c, vec3(1.0), uFlash), 1.0); }`,
   side:THREE.BackSide, depthWrite:false, fog:false }));
 SKY.renderOrder = -10; SKY.userData.noEdge = true; SKY.frustumCulled = false; scene.add(SKY);
@@ -1772,6 +2013,8 @@ const COLOR_ARENA = {
           sky:[0xA9C7C9, 0xEEF0CF, 0xB7B58A], bg:0xE2E8C6, fog:0xD4DDB6, hemi:[0xF4F7E4, 0x6E7550], sun:0xFFE6B4, ground:0xA89E6E, rays:0xFFF3C8, bamboo:0x92B462, leaves:0x7FA24C,
            lay:{ '-6':0xEEF1D8, '-5':0xE8EDD2, '-4':0xB6C99C, '-3':0x98B381, '-2':0x7A9B63 },
            hex:{} },
+  sakura: { paint:{ ground:0xF0DCCF, sky:[0x2C285E, 0xFF9450, 0xB86A60], bg:0xE89A7C, fog:0xE79A84, sun:0xFFC896, hemi:[0xD6C2E8, 0x5E4A6E], motes:0xFFD0A0, grass:0x7C9A4E, lay:{} },
+           sky:[0x5E4E92, 0xFFAE76, 0xC08070], bg:0xF0B896, fog:0xEDB396, hemi:[0xE2D2EE, 0x6E5A7C], sun:0xFFD0A4, ground:0xFFF4EA, rays:0xFFD6A8, grass:0x86A058, lay:{}, hex:{} },
   gul: { paint:{ ground:0xC4AE92, sky:[0x5A4AA0, 0xFFB48C, 0xC07A70], bg:0xF6C2A6, fog:0xF0BCA8, sun:0xFFC4A0, hemi:[0xFFE0D2, 0x6A4E6C], motes:0xFFD0B0, grass:0x7EA458, lay:{ '-6':0xFFD2C6, '-5':0xFFDCD0, '-4':0x9C88BA, '-3':0x7E86A6, '-2':0x6C8A5C } },
           sky:[0x9AA0C4, 0xF0CFC0, 0xC1A797], bg:0xDCC4C4, fog:0xD4BDB7, hemi:[0xFFEDE6, 0x7D7064], sun:0xF6E4CE, ground:0xC7B394, rays:0xFFE8D6, grass:0x8DA160,
            lay:{ '-6':0xF3D8D2, '-5':0xE7D3D0, '-4':0xA59FB5, '-3':0x8D95A0, '-2':0x77866A },
@@ -1894,6 +2137,9 @@ function paintArena(){
   RIM.col.value.setHex(C ? new THREE.Color(C.sun).lerp(new THREE.Color(0xFFFFFF), .25).getHex() : 0xF7F1E1); RIM.k.value = (dark ? .78 : .6) + (S.style === 'painted' ? .15 : 0);
   hemiLight.color.setHex(C ? C.hemi[0] : cfg.hemi[0]); hemiLight.groundColor.setHex(C ? C.hemi[1] : cfg.hemi[1]);
   sunLight.color.setHex(C ? C.sun : cfg.sun[0]);
+  if (gradePass){ const gr = cfg.grade || {}, U = gradePass.uniforms;
+    U.uSh.value.fromArray(gr.sh || [.76, .86, 1.06]); U.uHi.value.fromArray(gr.hi || [1.05, 1.0, .9]); U.uGlowK.value = gr.glow || .22; U.uGSat.value = gr.sat || 1.18; U.uGlowT.value = gr.glowT || .8; }
+  if (cfg.rim) RIM.k.value = cfg.rim + (S.style === 'painted' ? .12 : 0);
 }
 // both fighters take the palette of the mode (their own chosen colours still apply on top)
 function repaintFighters(){
@@ -2655,6 +2901,7 @@ const Sfx = (function(){
     kopru: { wind:0, howl:0, rustle:0, rain:.13, river:.08, drone:[43.65, .022], crick:0, bell:0, chime:0 },
     bambu: { wind:0, howl:0, rustle:.03, drone:[58.27, .016], crick:.03, bell:0, chime:0, knock:1 },
     gul:   { wind:0, howl:0, rustle:.06, drone:[46.25, .02], crick:.012, bell:0, chime:1 },
+    sakura:{ wind:0, howl:0, rustle:.05, drone:[49, .018], crick:.016, bell:[22, 34, .45], chime:1 },
     ay:    { wind:0, howl:0, rustle:0, river:.025, drone:[41.2, .03], crick:.024, bell:[16, 26, 1], chime:0 },
   };
   const AMB = { want:null, key:null, bus:null, L:{}, stop:[], tick:0, nextBell:0, nextChime:0, nextKnock:0 };
@@ -2757,6 +3004,7 @@ const Sfx = (function(){
       kopru: [[293.7, .6], [311.1, .9], [392, .6], [440, 1.8], [311.1, 2.2]],
       bambu: [[587.3, .5], [523.3, .5], [440, 1.2], [493.9, .5], [440, 2.4]],
       gul:   [[392, .8], [440, .5], [523.3, 1.3], [587.3, .5], [523.3, .5], [440, 2.6]],
+      sakura:[[329.6, .7], [392, .5], [440, 1.4], [392, .45], [329.6, .45], [293.7, 2.6]],
       ay:    [[349.2, 1.3], [311.1, .6], [293.7, 1.6], [261.6, .5], [233.1, .5], [293.7, 2.8]],
     }[key] || [[440, 1], [523.3, 2]];
     const bus = gainN(.1); bus.connect(out); if (revIn){ const r = gainN(1.3); bus.connect(r); r.connect(revIn); }
@@ -7515,7 +7763,7 @@ function cineEnd(){
   $('#app').classList.remove('cine'); $('#hud').classList.remove('dim');
 }
 // the arena's name and a line about the two of them, brushed in over the opening crane shot
-const ARENA_KANJI = { kopru:'嵐', gul:'薔薇', ay:'赤月' };
+const ARENA_KANJI = { kopru:'嵐', gul:'薔薇', ay:'赤月', sakura:'桜' };
 const titleEl = $('#arenaTitle');
 let titleKey = '';
 function titleCard(){
@@ -8200,7 +8448,7 @@ applyGfx();
 S.look = cleanLook(S.look); you.lookCfg = S.look;
 setWeapon(you, S.pw);
 setWeapon(foe, S.bw === 'random' ? 'katana' : S.bw);
-buildArena(S.arena !== 'random' ? S.arena : 'gul');
+buildArena(S.arena !== 'random' ? S.arena : 'sakura');
 resetFighter(you, 0, 2.6); resetFighter(foe, 0, -2.6);
 for (const f of [you, foe]) poseFighter(f, 16, 0);
 
@@ -8508,7 +8756,7 @@ function frame(now){
     }
   }
   updateCamera(rdt, now);
-  SKY.position.copy(camera.position);
+  SKY.position.copy(camera.position); SKY.material.uniforms.uTime.value = (now*.001) % 4000;
   updateMotes(now);
   camera.updateMatrixWorld(); RIM.dir.value.copy(sunLight.position).sub(sunLight.target.position).normalize().transformDirection(camera.matrixWorldInverse);
   if (window.__noRender){ requestAnimationFrame(frame); return; }
