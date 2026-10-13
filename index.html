@@ -984,6 +984,8 @@ sunLight.shadow.mapSize.set(1024,1024);
 Object.assign(sunLight.shadow.camera, { left:-13, right:13, top:13, bottom:-13, near:1, far:50 });
 sunLight.shadow.bias = -0.0008;
 scene.add(sunLight);
+// a soft bounce from the side away from the sun, for arenas that are lit from behind the duel (off elsewhere)
+const fillLight = new THREE.DirectionalLight(0xFFD8C8, 0); fillLight.position.set(0, 5, 20); scene.add(fillLight);
 const flashLight = new THREE.PointLight(0xFFFFFF, 0, 7, 2); flashLight.position.set(0, 1.4, 0); scene.add(flashLight);
 let flashLevel = 0;
 
@@ -1587,8 +1589,8 @@ function arenaSakura(){
     const lowG = S.gfx === 'fast', dens = lowG ? 8 : 12;
     for (const [ex, ey, ez, s, ty] of ends){ const n = Math.round(dens*s);
       for (let k=0;k<n;k++){ const a = rand(0, TAU), r = Math.sqrt(Math.random())*1.15*s; list.push([ex + Math.cos(a)*r, ey + rand(-.35, .5)*s, ez + Math.sin(a)*r, s*rand(.65, 1.15), ty]); } }
-    const BL = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(lowG ? .62 : .58, lowG ? 0 : 1), toon(0xFFFFFF, { emissive:0x5A2E3E }), list.length), col = new THREE.Color();
-    const shades = [0xFFC2D2, 0xFAB0C6, 0xFFD4E0, 0xF6A4BE, 0xFFE4EC];
+    const BL = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(lowG ? .62 : .58, lowG ? 0 : 1), toon(0xFFFFFF, { emissive:0x4A2232 }), list.length), col = new THREE.Color();
+    const shades = [0xFAAAC2, 0xF496B4, 0xFFC0D2, 0xEE8AAC, 0xFFD0DE];
     list.forEach(([x, y, z, s, ty], i) => { d.position.set(x, y, z); d.rotation.set(rand(0, 3), rand(0, 3), 0); d.scale.set(s*rand(.9, 1.3), s*rand(.7, 1), s*rand(.9, 1.3)); d.updateMatrix(); BL.setMatrixAt(i, d.matrix);
       // the underside of the canopy sits in its own shade, the top catches the light
       const up = clamp((y - ty)/2.6, 0, 1); col.setHex(shades[i % shades.length]).multiplyScalar(.72 + .34*up); BL.setColorAt(i, col); });
@@ -1622,7 +1624,7 @@ function arenaSakura(){
   mistBanks(3, .1);
   lightShafts(6, .5, .09, Math.atan2(SAKURA_SUN[2], SAKURA_SUN[0]), .7);
   return { bg:0xE89A7C, fog:[0xE79A84, 24, 95], hemi:[0xD6C2E8, 0x5E4A6E, .58], sun:[0xFFC896, .9, 4.4, 9.5, -25], wind:[-1.6, .6, .9], weather:'sakura', gust:[3000, 6500, 1],
-    sky:{ sun:SAKURA_SUN, col:0xFFA060, k:1, cloud:1, lit:0xF49868, dark:0x5A4884 }, grade:{ sh:[.9, .84, 1.08], hi:[1.04, .99, .92], glow:.5, sat:1.04, glowT:.92 }, rim:.82 };
+    sky:{ sun:SAKURA_SUN, col:0xFFA060, k:1, cloud:1, lit:0xF49868, dark:0x5A4884 }, grade:{ sh:[.9, .84, 1.08], hi:[1.04, .99, .92], glow:.5, sat:1.04, glowT:.92 }, rim:.82, fill:[0xF6C8D0, .3, -3, 6, 24] };
 }
 function arenaAy(){
   /* a flooded shrine under a blood moon: a ring of flagstones in still black water, a torii standing out in the lake
@@ -1762,14 +1764,14 @@ const _dum = new THREE.Object3D();
 /* a few big blossoms drifting right past the lens, out of focus, at the edges of the frame */
 const FGP = { list:null, f:new THREE.Vector3(), r:new THREE.Vector3(), u:new THREE.Vector3() };
 function fgPetals(s, now){
-  const on = WX.mode === 'sakura' && S.style !== 'ink' && G.phase !== 'result';
+  const on = WX.mode === 'sakura' && S.style !== 'ink' && (G.phase === 'menu' || G.phase === 'intro');
   if (!FGP.list){ if (!on) return;
-    const tex = canvasTex(64, 64, (g) => { const gr = g.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, 'rgba(255,214,226,.95)'); gr.addColorStop(.6, 'rgba(250,176,198,.75)'); gr.addColorStop(1, 'rgba(250,176,198,0)');
+    const tex = canvasTex(64, 64, (g) => { const gr = g.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, 'rgba(250,170,196,.9)'); gr.addColorStop(.6, 'rgba(240,140,176,.6)'); gr.addColorStop(1, 'rgba(240,140,176,0)');
       g.fillStyle = gr; g.beginPath(); g.ellipse(32, 32, 30, 18, 0, 0, TAU); g.fill(); });
     FGP.list = [];
     for (let i=0;i<7;i++){ const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, transparent:true, opacity:.85, depthWrite:false, depthTest:false, fog:false }));
       sp.renderOrder = 20; sp.userData.noEdge = true; scene.add(sp);
-      FGP.list.push({ sp, x:(Math.random() < .5 ? -1 : 1)*rand(.55, 1.1), y:rand(-1, 1), d:rand(.9, 1.8), sp0:rand(.6, 1.4), ph:rand(0, TAU), sc:rand(.07, .13) }); } }
+      FGP.list.push({ sp, x:(Math.random() < .5 ? -1 : 1)*rand(.55, 1.1), y:rand(-1, 1), d:rand(.9, 1.8), sp0:rand(.6, 1.4), ph:rand(0, TAU), sc:rand(.035, .07) }); } }
   for (const p of FGP.list) p.sp.visible = on;
   if (!on) return;
   camera.getWorldDirection(FGP.f); FGP.r.crossVectors(FGP.f, camera.up).normalize(); FGP.u.crossVectors(FGP.r, FGP.f).normalize();
@@ -1861,6 +1863,7 @@ function buildArena(key){
   scene.fog = new THREE.Fog(cfg.fog[0], cfg.fog[1], cfg.fog[2]);
   hemiLight.color.setHex(cfg.hemi[0]); hemiLight.groundColor.setHex(cfg.hemi[1]); hemiLight.intensity = cfg.hemi[2];
   sunLight.color.setHex(cfg.sun[0]); sunLight.intensity = cfg.sun[1]; sunLight.position.set(cfg.sun[2], cfg.sun[3], cfg.sun[4]);
+  if (cfg.fill){ fillLight.color.setHex(cfg.fill[0]); fillLight.intensity = cfg.fill[1]; fillLight.position.set(cfg.fill[2], cfg.fill[3], cfg.fill[4]); } else fillLight.intensity = 0;
   WIND.x = cfg.wind[0]; WIND.z = cfg.wind[1]; WIND.gust = cfg.wind[2]; WIND.gustNow = 0;
   AR.base = { bg:new THREE.Color(cfg.bg), fog:new THREE.Color(cfg.fog[0]), sun:cfg.sun[1], hemi:cfg.hemi[2] };
   AR.gust = cfg.gust || [5000, 9000, .6]; AR.clock = 0; AR.g = { next:1200, t0:-1e9, dur:1, amp:0 };
@@ -3135,19 +3138,23 @@ function buildView(isPlayer){
     const knee = new THREE.Group(); knee.position.set(0, -.44, 0); hip.add(knee);
     add(new THREE.SphereGeometry(.071, 9, 6), mLeg, 0, 0, 0, knee, .012);
     add(new THREE.CylinderGeometry(.07,.055,.45,9), mLeg, 0,-.215,0, knee);
-    const foot = add(new THREE.BoxGeometry(.13,.07,.28), mDark, 0,-.45,-.05, knee);
+    const fg = new THREE.SphereGeometry(.07, 12, 8, 0, TAU, 0, Math.PI*.6); fg.scale(.95, .85, 2.05);
+    const foot = add(fg, mDark, 0,-.485,-.05, knee);
     feet.push(foot); hips.push(hip); knees.push(knee);
   }
   // arms: upper arm and forearm meet at an elbow (two-bone IK in poseFighter); a rounded shoulder caps the joint
-  const upGeo = new THREE.CylinderGeometry(.066,.058,1,9), foreGeo = new THREE.CylinderGeometry(.058,.047,1,9);
+  const upGeo = limbGeo(UPPER_ARM), foreGeo = limbGeo(FOREARM);
   const armL = add(upGeo, mArm, 0,0,0), armR = add(upGeo, mArm, 0,0,0);
   const foreL = add(foreGeo, mArm, 0,0,0), foreR = add(foreGeo, mArm, 0,0,0);
   const elbowGeo = new THREE.SphereGeometry(.06, 9, 6);
   const elbowL = add(elbowGeo, mArm, 0,0,0, body, .012), elbowR = add(elbowGeo, mArm, 0,0,0, body, .012);
   for (const sx of [-1, 1]) add(new THREE.SphereGeometry(.082, 10, 7), mArm, .27*sx, .6, -.02, body, .012).scale.set(1, .85, 1);
-  const handGeo = new THREE.SphereGeometry(.06,8,6);
+  // a closed hand: the fist runs on from the wrist along the forearm, with the knuckles and a thumb laid along it
+  const handGeo = new THREE.SphereGeometry(.052, 10, 8); handGeo.scale(1, 1.3, .86); handGeo.translate(0, .03, 0);
   const handL = add(handGeo, mDark, 0,0,0), handR = add(handGeo, mDark, 0,0,0);
-  handL.scale.set(1, .9, 1.15); handR.scale.set(1, .9, 1.15);
+  const thumbGeo = new THREE.SphereGeometry(.02, 6, 5); thumbGeo.scale(1, 1.9, 1);
+  for (const [h, sx] of [[handL, -1], [handR, 1]]){ const th = add(thumbGeo, mDark, -.035*sx, .025, -.03, h, .006); th.rotation.z = .5*sx;
+    add(new THREE.CylinderGeometry(.05, .052, .035, 10), mDark, 0, -.01, 0, h, .006); }
   const rig = new THREE.Group(); rig.position.set(0,.33,-.3); body.add(rig);
   const swing = new THREE.Group(); rig.add(swing);
   const weapon = new THREE.Group(); weapon.name = 'weapon'; weapon.position.x = .17; swing.add(weapon);
@@ -3162,6 +3169,25 @@ function buildView(isPlayer){
   return { root, body, hips, knees, feet, armL, armR, foreL, foreR, elbowL, elbowR, handL, handR, rig, rigBase:rig.position.clone(), swing, weapon, gripA, gripB, tip, base, bladeMat, gripMat, guardMat, wmesh:null,
     baseMats:[mDark, mLeg, mSkin, mArm], mats:[mDark, mLeg, mSkin, mArm], legMat:mLeg, armMat:mArm, accent:P.accent, pal:P, side:isPlayer ? 'you' : 'foe', heavyRing, outfit, outfitMats:[] };
 }
+/* ---- sculpting: shapes that start as lathes and spheres and are pushed into anatomy ---- */
+const smoothK = (a, b, x) => { const t = clamp((x - a)/(b - a), 0, 1); return t*t*(3 - 2*t); };
+// a limb of unit length along y (-.5 shoulder or elbow end, +.5 the far end), closed at both ends, with a muscle's swell
+function limbGeo(pr){ const g = new THREE.LatheGeometry(pr.map(p => new THREE.Vector2(p[0], p[1])), 12); g.computeVertexNormals(); return g; }
+const UPPER_ARM = [[0, -.5], [.05, -.49], [.066, -.42], [.075, -.2], [.072, 0], [.063, .25], [.054, .45], [.048, .49], [0, .5]];
+const FOREARM = [[0, -.5], [.05, -.49], [.061, -.32], [.058, -.1], [.049, .25], [.041, .46], [0, .5]];
+// a head with a jaw: the lower half narrows to the chin and the chin comes forward; every shell laid over the face takes
+// the same shape (by its own radius), so a painted face, a beard or a mask still fits it exactly
+function shapeHead(geo, r){
+  const p = geo.attributes.position;
+  for (let i=0;i<p.count;i++){
+    let x = p.getX(i), y = p.getY(i), z = p.getZ(i); const t = y/r, k = smoothK(-.1, -.95, t), ck = Math.exp(-Math.pow((t + .05)/.25, 2));
+    x *= 1 - .2*k + .03*ck*(z < 0 ? 1 : 0); z *= 1 - .05*k; if (z < 0) z -= .07*r*k*(1 - Math.abs(x)/r);
+    if (z > 0 && t > -.2) z *= 1.04;   // a fuller back of the skull
+    p.setXYZ(i, x, y, z);
+  }
+  geo.computeVertexNormals(); return geo;
+}
+const headSphere = (r, ...a) => shapeHead(new THREE.SphereGeometry(r, ...a), r);
 /* ---- painted faces ----
    The patch covers the front of the head: canvas x runs across the face, canvas y from the forehead (theta .33pi) to the chin
    (theta .75pi). Eyes sit at y 86, brows at 48, the nose at 146, the mouth at 181 (of 256). */
@@ -3355,7 +3381,15 @@ function dress(f){
   v.armMat.color.setHex(R.arms === 'bare' ? P.skin : mainCol);
   v.baseMats[2].color.setHex(P.skin);
   // torso: a tailored lathe instead of a tube, a little flatter front to back
-  const torso = add(lathe([[.22*bk, -.04], [.26*bk, .08], [.29*bk, .3], [.31*bk, .5], [.3*bk, .62], [.2*bk, .74], [.09, .8]]), mk('torso', mainCol), 0, 0, 0);
+  const tg = lathe([[.22*bk, -.04], [.25*bk, .08], [.27*bk, .24], [.31*bk, .46], [.315*bk, .6], [.22*bk, .73], [.09, .8]], 20);
+  { const p = tg.attributes.position;
+    for (let i=0;i<p.count;i++){ let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      const chest = Math.exp(-Math.pow((y - .48)/.11, 2)), waist = Math.exp(-Math.pow((y - .2)/.12, 2));
+      if (z > 0) z += .03*bk*chest*Math.min(1, z/.15); else z -= .018*bk*Math.exp(-Math.pow((y - .56)/.1, 2))*Math.min(1, -z/.15);   // chest out front (local +z after the flip below), blades behind
+      x *= 1 - .07*waist;
+      p.setXYZ(i, x, y, z); }
+    tg.rotateY(Math.PI); tg.computeVertexNormals(); }
+  const torso = add(tg, mk('torso', mainCol), 0, 0, 0);
   torso.scale.z = .84;
   if (!coat){
     const collar = (sx) => new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(.13*sx, .76, -.1), new THREE.Vector3(.07*sx, .6, -.24), new THREE.Vector3(-.03*sx, .4, -.265)]), 8, .024, 5, false);
@@ -3375,7 +3409,7 @@ function dress(f){
   if (!coat) add(new THREE.BoxGeometry(.16, .1, .07), mk('accent', P.accent), 0, .1, .24);
   // neck, head
   add(new THREE.CylinderGeometry(.065, .075, .12, 8), mk('skin', P.skin), 0, .83, 0);
-  add(new THREE.SphereGeometry(.14, 18, 14), mk('skin', P.skin), 0, .96, 0).scale.set(1, 1.05, 1.02);
+  add(headSphere(.14, 22, 16), mk('skin', P.skin), 0, .96, 0).scale.set(1, 1.05, 1.02);
   // a nose and ears give the head a profile; they hide inside hoods and helmets
   for (const sx of [-1, 1]) add(new THREE.SphereGeometry(.032, 8, 6), mk('skin', P.skin), .139*sx, .955, .005, .006).scale.set(.45, 1, .75);
   const inkM = mk('dark', P.dark);
@@ -3389,21 +3423,21 @@ function dress(f){
     v.faceTex = faceTextures(P, lower, R.face === 'scar', R.beard === 'stubble');
     const fm = new THREE.MeshBasicMaterial({ map:v.faceTex.calm, transparent:true, alphaTest:.3, depthWrite:false });
     v.faceMat = fm;
-    const face = new THREE.Mesh(new THREE.SphereGeometry(.1418, 28, 18, Math.PI*1.5 - .95, 1.9, Math.PI*.33, Math.PI*.42), fm);
+    const face = new THREE.Mesh(headSphere(.1418, 28, 18, Math.PI*1.5 - .95, 1.9, Math.PI*.33, Math.PI*.42), fm);
     face.position.set(0, .96, 0); face.scale.set(1, 1.05, 1.02); face.userData.noEdge = true; face.renderOrder = 1; g.add(face);
   }
   if (R.face === 'cloth'){ add(new THREE.CylinderGeometry(.15, .142, .11, 16, 1, true, Math.PI - 1.35, 2.7), mk('fcloth', P.dark, ds), 0, .9, 0, .01); }
   else if (R.face === 'menpo'){
     // menpō: a lacquered lower face with a grimace of teeth, a bristle moustache and the throat guard hanging below
     const lac = mk('mask', P.dark);
-    const mp = add(new THREE.SphereGeometry(.15, 16, 10, Math.PI*1.5 - 1.05, 2.1, Math.PI*.47, Math.PI*.33), lac, 0, .962, 0, .012); mp.scale.set(1, 1.05, 1.02);
+    const mp = add(headSphere(.15, 16, 10, Math.PI*1.5 - 1.05, 2.1, Math.PI*.47, Math.PI*.33), lac, 0, .962, 0, .012); mp.scale.set(1, 1.05, 1.02);
     add(new THREE.ConeGeometry(.034, .06, 8), lac, 0, .928, -.16, .006).rotation.x = -Math.PI/2;
     for (let i=0;i<5;i++) add(new THREE.BoxGeometry(.012, .018, .01), mk('bone', 0xEFE9DC), (i - 2)*.022, .886, -.141, 0);
     for (const sx of [-1, 1]){ const m = add(new THREE.BoxGeometry(.07, .014, .018), mk('bristle', 0xD8CFBD), .045*sx, .908, -.142, 0); m.rotation.z = -.3*sx; }
     for (let i=0;i<3;i++) add(new THREE.CylinderGeometry(.14 + i*.012, .15 + i*.012, .024, 14, 1, true, Math.PI - .95, 1.9), mk('metalD', P.metal, ds), 0, .835 - i*.03, .005, .006);
   } else if (covered){
     const kit = R.face === 'kitsune', shell = mk(kit ? 'kmask' : 'omask', kit ? 0xEFE9DC : 0x9A2A20, ds);
-    add(new THREE.SphereGeometry(.152, 14, 10, Math.PI*1.5 - 1.05, 2.1, .35, 1.75), shell, 0, .96, 0, .012);
+    add(headSphere(.152, 14, 10, Math.PI*1.5 - 1.05, 2.1, .35, 1.75), shell, 0, .96, 0, .012);
     for (const sx of [-1, 1]){ const e = add(new THREE.BoxGeometry(.05, .014, .01), inkM, .05*sx, .975, -.15, 0); e.rotation.z = (kit ? -.35 : .3)*sx; }
     if (kit){
       const sn = add(new THREE.ConeGeometry(.055, .13, 10), shell, 0, .925, -.19, .01); sn.rotation.x = -Math.PI/2;
@@ -3452,13 +3486,25 @@ function dress(f){
       // a fringe at the front so the hairline reads from the front too
       add(new THREE.SphereGeometry(.151, 12, 4, Math.PI*1.18, Math.PI*.64, Math.PI*.2, Math.PI*.18), hairM, 0, .968, .006, .006);
     }
+    if (bare && HS !== 'wild'){
+      // loose locks: a few strands fall over the brow and the temples, so the head has a silhouette and not a cap
+      const lockGeo = new THREE.ConeGeometry(.024, .12, 5); lockGeo.rotateX(Math.PI); lockGeo.translate(0, -.06, 0);
+      const N = HS === 'long' ? 9 : 7;
+      for (let i=0;i<N;i++){
+        const a = Math.PI + (i/(N - 1) - .5)*2.3 + rand(-.06, .06), side = Math.abs(i/(N - 1) - .5)*2;
+        const y = 1.075 - side*.07, dy = y - .972, rr = Math.sqrt(Math.max(.003, .157*.157 - dy*dy));
+        const lk = add(lockGeo, hairM, Math.sin(a)*rr, y, Math.cos(a)*rr, .005);
+        lk.rotation.set((.3 + rand(0, .2))*(1 - side)*(Math.cos(a) < 0 ? 1 : -1), 0, Math.sin(a)*(.12 + side*.22));
+        lk.scale.set(1, side > .7 ? 1.45 + rand(0, .2) : .62 + rand(0, .15), .7);
+      }
+    }
   }
   // ---- face hair: brows always (unless masked), and the beard ----
   const masked = R.face === 'menpo' || R.face === 'oni' || R.face === 'kitsune' || R.face === 'cloth';
   if (!masked){
     const B = R.beard;
     if (B === 'full'){
-      add(new THREE.SphereGeometry(.149, 14, 6, Math.PI*1.08, Math.PI*.84, Math.PI*.64, Math.PI*.26), hairM, 0, .96, 0, .008);
+      add(headSphere(.149, 14, 6, Math.PI*1.08, Math.PI*.84, Math.PI*.64, Math.PI*.26), hairM, 0, .96, 0, .008);
       const ch = add(new THREE.ConeGeometry(.06, .11, 8), hairM, 0, .83, -.1, .008); ch.rotation.x = Math.PI + .4;
     }
     if (B === 'mustache' || B === 'full' || B === 'goatee'){
@@ -3606,8 +3652,10 @@ function dress(f){
   v.mats = v.baseMats.concat(v.outfitMats);
   // ---- cloth ----
   const clothMat = (hex) => { const m = mat(hex, ds); v.outfitMats.push(m); v.mats.push(m); return m; };
-  if (R.legs === 'hakama' || R.legs === 'tassets') f.cloth.push(makeCloth(skirtSpec(clothMat(P.hakama), { cols:26, rows:6, y0:.04, y1:-.9, r0:.27*bk, r1:.57*bk, pleat:.13, from:0, to:TAU, closed:true, shape:.1 })));
-  if (R.legs === 'short') f.cloth.push(makeCloth(skirtSpec(clothMat(P.hakama), { cols:24, rows:5, y0:.04, y1:-.58, r0:.27*bk, r1:.46*bk, pleat:.12, from:0, to:TAU, closed:true, shape:.1 })));
+  // pleats are shaded into the cloth (light on the ridge, dark in the fold) and the hem is a darker band
+  const pleatShade = (rows, deep) => (i, j) => { const u = j/(rows - 1); return (j === 0 ? .9 : 1) - (i % 2 ? 0 : .2*Math.min(1, u*3)) - (j === rows - 1 ? .16 : 0) - deep*(1 - u)*.0; };
+  if (R.legs === 'hakama' || R.legs === 'tassets') f.cloth.push(makeCloth(Object.assign(skirtSpec(clothMat(P.hakama), { cols:28, rows:7, y0:.04, y1:-.9, r0:.27*bk, r1:.42*bk, pleat:.14, from:0, to:TAU, closed:true, shape:.1, split:R.legs === 'hakama' ? .6 : 0 }), { vcol:pleatShade(7, 0) })));
+  if (R.legs === 'short') f.cloth.push(makeCloth(Object.assign(skirtSpec(clothMat(P.hakama), { cols:24, rows:5, y0:.04, y1:-.58, r0:.27*bk, r1:.38*bk, pleat:.13, from:0, to:TAU, closed:true, shape:.1, split:.45 }), { vcol:pleatShade(5, 0) })));
   if (R.legs === 'tails') f.cloth.push(makeCloth(skirtSpec(clothMat(P.coat), { cols:12, rows:6, y0:.06, y1:-.62, r0:.27, r1:.38, pleat:.03, from:-(Math.PI - .75), to:Math.PI - .75, closed:false, shape:.05 })));
   const sleeve = ({ wide:.5, sleeve:.38, kote:.2 })[R.arms] || 0;
   if (sleeve){ for (const sx of [-1, 1]) f.cloth.push(makeCloth(sleeveSpec(clothMat(mainCol), sx, sleeve))); }
@@ -3629,6 +3677,7 @@ function makeCloth(spec){
   const idx = [], cmax = spec.closed ? cols : cols - 1;
   for (let j=0;j<rows-1;j++) for (let i=0;i<cmax;i++){ const a = j*cols + i, b = j*cols + (i + 1)%cols, c = (j + 1)*cols + i, d = (j + 1)*cols + (i + 1)%cols; idx.push(a, c, b, b, c, d); }
   geo.setIndex(idx);
+  if (spec.vcol){ const col = new Float32Array(n*3); for (let v=0; v<n; v++){ const k = spec.vcol(v % cols, Math.floor(v/cols)); col[v*3] = col[v*3+1] = col[v*3+2] = k; } geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); spec.mat.vertexColors = true; }
   const mesh = new THREE.Mesh(geo, spec.mat); mesh.castShadow = true; mesh.frustumCulled = false; mesh.userData.cloth = true; scene.add(mesh);
   const pin = new Uint8Array(n); for (let v=0; v<n; v++) pin[v] = spec.pinned(v % cols, Math.floor(v/cols)) ? 1 : 0;
   return Object.assign({}, spec, { n, pos, prv, tgt, geo, mesh, pin, cons:null, ready:false });
@@ -3654,7 +3703,10 @@ function skirtSpec(m, o){
       for (let j=0;j<o.rows;j++){
         const u = j/(o.rows - 1), r = (o.r0 + (o.r1 - o.r0)*Math.pow(u, .8))*(1 + (fl - 1)*u), y = (o.y1 - o.y0)*u*(1 - .12*(fl - 1)*u);
         for (let i=0;i<o.cols;i++){
-          const a = o.from + (o.to - o.from)*(o.closed ? i/o.cols : i/(o.cols - 1)), rr = r*(1 + (i % 2 ? o.pleat : -o.pleat)*Math.min(1, u*3));
+          const a = o.from + (o.to - o.from)*(o.closed ? i/o.cols : i/(o.cols - 1));
+          let rr = r*(1 + (i % 2 ? o.pleat : -o.pleat)*Math.min(1, u*3));
+          // a divided skirt: the cloth folds in between the legs, front and back, so it reads as two wide trouser legs
+          if (o.split){ const df = Math.abs(wrap(a - Math.PI)), db = Math.abs(wrap(a)); rr *= 1 - o.split*Math.min(1, u*2.2)*(Math.exp(-Math.pow(df/.22, 2)) + .7*Math.exp(-Math.pow(db/.22, 2))); }
           const vi = (j*o.cols + i)*3;
           if (j === 0){ v.body.localToWorld(_cB.set(Math.sin(a)*rr, o.y0, Math.cos(a)*rr*.86)); }
           else { _cB.set(Math.sin(a)*rr, y, Math.cos(a)*rr*.9).applyQuaternion(_clq).add(_cA); }
@@ -7201,8 +7253,8 @@ function poseFighter(f, dt, now){
   }
   if (G.gun) gunPose(f, v, dt);
   else if (v.pistol){ v.pistol.visible = false; v.weapon.visible = true; if (v.weapon2) v.weapon2.visible = true; }
-  placeArm(v.armL, v.foreL, v.elbowL, SH_L, _a, -1); v.handL.position.copy(_a);
-  placeArm(v.armR, v.foreR, v.elbowR, SH_R, _b, 1); v.handR.position.copy(_b);
+  placeArm(v.armL, v.foreL, v.elbowL, SH_L, _a, -1); v.handL.position.copy(_a); v.handL.quaternion.copy(v.foreL.quaternion);
+  placeArm(v.armR, v.foreR, v.elbowR, SH_R, _b, 1); v.handR.position.copy(_b); v.handR.quaternion.copy(v.foreR.quaternion);
   if (f.w && f.w.chain) updateChain(f, _a, now); else if (v.chain) v.chain.group.visible = false;
   if (dt > 0) updateTrail(f);
   f.prevAlpha = P.alpha; f.prevPhi = P.phi;
