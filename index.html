@@ -7733,7 +7733,7 @@ function drawHUD(){
   hx.beginPath(); hx.moveTo(gx0, gy0); hx.lineTo(gx1, gy1); hx.lineWidth = 8; hx.strokeStyle = 'rgba(236,228,210,.8)'; hx.stroke();
   hx.beginPath(); hx.moveTo(gx0, gy0); hx.lineTo(gx1, gy1); hx.lineWidth = 4.5; hx.strokeStyle = col; hx.stroke();
   // your own swing: a big arrow across the dial along the cut
-  if ((you.state === 'windup' || you.state === 'hold') && you.atk && you.atk.live && G.phase === 'fight'){
+  if ((you.state === 'windup' || you.state === 'hold') && you.atk && (you.atk.live || you.atk.steer) && G.phase === 'fight'){
     const kk = you.state === 'hold' ? clamp(you.t/350, 0, 1) : 0;
     const o = you.atk.angle;
     const c2 = kk >= 1 ? 'rgba(176,36,28,.95)' : 'rgba(42,39,35,.9)';
