@@ -587,6 +587,8 @@ details.ctrls[open] summary::before{content:"– "}
         <div class="keys">
           <kbd>Mouse</kbd><span>Aim your guard</span>
           <kbd>Left click</kbd><span>Attack · drag while clicking to choose the side · click again on a hit: combo</span>
+          <kbd>Combo</kbd><span>Click quickly after a hit for the next link · wait, then click, to jump to the last link · hold a link to charge it into a heavy finish</span>
+          <kbd>Flow</kbd><span>Roll, dash or jump out of the start of your swing or the end of a recovery · click at the end of a roll or dash for a counter cut · parry straight out of a feint</span>
           <kbd>Hold left click</kbd><span>Heavy attack · keep holding until the ring turns gold: weapon art</span>
           <kbd>Right click / Q</kbd><span>Parry · hold to keep your guard up and steer it with the mouse · tap just before the blow for a perfect parry · during your own windup: feint</span>
           <kbd>WASD</kbd><span>Move around your opponent</span>
@@ -4133,8 +4135,9 @@ function resetFighter(f, x, z){
 const canAct = f => f.state === 'idle' || f.state === 'crouch';
 /* a dodge also cuts short the little settling states (a landing, rising from a crouch, the end of a spin, a weapon swap,
    the tail of a blow that landed), so the key answers at once instead of after them; a whiff or a wasted parry still costs */
-const canDodge = f => canAct(f) || f.state === 'land' || f.state === 'crouchUp' || f.state === 'spinRecover' || f.state === 'swap' ||
-  (f.state === 'recovery' && f.atk && f.atk.contact && !f.atk.parried && !f.atk.dodged && f.t > f.dur*.45);
+const canDodge = f => canAct(f) || f.state === 'land' || f.state === 'crouchUp' || f.state === 'spinRecover' || f.state === 'swap' || f.state === 'feintRecover' ||
+  (f.state === 'recovery' && f.t > f.dur*(f.atk && f.atk.contact && !f.atk.parried && !f.atk.dodged ? .3 : .55)) ||
+  (f.state === 'windup' && f.atk && !f.atk.art && f.t < f.dur*.4);
 /* ---- breath ----
    A slow resource: moves cost a little, rest refills it fast. Below WINDED the fighter is heavy and slow;
    at zero the dodges (dash, roll, jump, spin) are refused but attacking and parrying never are. */
@@ -4195,6 +4198,7 @@ function trySpinAttack(f){
   return true;
 }
 function tryJump(f, dir){
+  if (f.state === 'windup' && canDodge(f)) spend(f, 4);
   if (!canDodge(f) || !spend(f, 12, true)) return false;
   f.air = { start:T, end:T + JUMP_DUR };
   f.vel.x = (dir ? dir.x : 0)*2.6; f.vel.z = (dir ? dir.z : 0)*2.6;
@@ -4244,14 +4248,19 @@ function comboAngle(kind, p){
 function tryAttack(f, angle, heavy, opts){
   if (G.gun && f.gun === 'pistol') return false;
   const combo = canCombo(f);
-  if (!canAct(f) && !combo) return false;
+  const fromDodge = !combo && ((f.state === 'roll' && f.t > ROLL_END - 60) || (f.state === 'dash' && f.t > f.dur*.5) || (f.state === 'slip' && f.t > f.dur*.5));
+  if (!canAct(f) && !combo && !fromDodge) return false;
   const rip = T < f.riposteUntil;
   let dur = (heavy ? f.w.windH : f.w.windL) * S.speed;
   let n = 1, link = null;
   if (combo){
     // the next link of this weapon's chain: where it comes from and what it is
     n = (f.atk.combo || 1) + 1;
+    // the delayed branch: wait in the recovery and click late, and the chain skips straight to its last link
+    const last = f.w.comboMax || 3, delayed = n < last && f.t > f.dur*.5;
+    if (delayed) n = last;
     link = (COMBOS[f.wkey] || [])[n - 1] || { ang:'mirror' };
+    if (delayed) link = Object.assign({}, link, { name:link.name + ' · delayed', dmg:(link.dmg || 1)*1.1 });
     // a player aims every link like the first blow: it comes from wherever the dial points and the move turns to match.
     // The bot keeps the weapon's usual line through the chain.
     const free = !!f.human;
@@ -4259,6 +4268,7 @@ function tryAttack(f, angle, heavy, opts){
     dur = heavy ? f.w.windH*S.speed*(link.wind || .55) : f.w.windL*S.speed*(f.wkey === 'dual' ? .74 : .62)*(link.wind || 1);
     if (link.thrust && !free) angle = srand(-.2, .2);
   }
+  else if (fromDodge){ dur = f.w.windL*S.speed*.7; heavy = false; }
   else if (rip) dur *= .6;
   else if (T < f.rallyUntil) dur *= tempo();   // counters inside a rally get quicker with every clash
   dur *= 1 + .1*f.inj.arm;                      // a wounded arm slows every swing
@@ -4267,9 +4277,10 @@ function tryAttack(f, angle, heavy, opts){
   f.rallyUntil = 0;
   spend(f, heavy ? 7 : (combo ? 5 : 3));
   f.atk = { angle:wrap(angle), heavy, riposte:rip, resolved:false, contact:false, feinted:false, feintT:0, dodged:false,
-    live: !!(opts && opts.live) && !link, combo:n, dmgMul: (n === 1 ? 1 : (n === (f.w.comboMax || 3) ? 1.25 : .9))*(link && link.dmg || 1),
+    live: !!(opts && opts.live) && (!link || f.human), noArt: !!link, fromDodge, combo:n, dmgMul: (n === 1 ? 1 : (n === (f.w.comboMax || 3) ? 1.25 : .9))*(link && link.dmg || 1),
     thrustLink: !!(link && link.thrust), noLunge: !!(link && link.cut), reach: link && link.reach || 0, link: link ? link.name : '', steer: !!(link && f.human) };
   if (T < (f.opp.blindUntil || 0) && f.opp.blindBy === f){ f.atk.flank = true; f.atk.dmgMul *= 1.15; }
+  if (fromDodge){ f.atk.dmgMul *= 1.1; if (fight() && f.isPlayer) setTiming('<b class="mid">COUNTER CUT</b>out of the dodge · it can start a chain'); }
   if (combo && fight() && f.isPlayer){ f.stats.combos++; setTiming(`<b class="mid">COMBO ${n} · ${link.name}</b>${n === (f.w.comboMax || 3) ? 'the last link · aim it anywhere' : 'aim it anywhere · land it and click once more'}`); }
   f.riposteUntil = 0;
   enter(f, 'windup', dur);
@@ -4290,7 +4301,8 @@ function tryParry(f, angle){
   if (G.gun && f.gun === 'pistol') return false;
   const counter = !canAct(f) && canCounter(f);
   const desperate = f.state === 'broken' && f.t >= 90 && f.breath >= 8;
-  if (!canAct(f) && !counter && !desperate) return false;
+  const late = f.state === 'feintRecover' || (f.state === 'recovery' && f.t > f.dur*.7);
+  if (!canAct(f) && !counter && !desperate && !late) return false;
   if (counter) spend(f, 6);
   if (desperate){ spend(f, 8); f.posture = 30; if (fight() && f.isPlayer) setTiming('<b class="mid">DESPERATE GUARD</b>a parry out of the break · the opening stays until it would have passed'); }
   f.counterParry = counter;
@@ -4338,6 +4350,7 @@ function feint(f){
   return true;
 }
 function tryDash(f, dir){
+  if (f.state === 'windup' && canDodge(f)) spend(f, 4);
   if (!canDodge(f) || T < f.dashReady || !spend(f, 10, true)) return false;
   f.dir = dir; f.vel.x = f.vel.z = 0;
   enter(f, 'dash', DASH_DUR); f.dashReady = T + DASH_CD;
@@ -4356,6 +4369,7 @@ function tryDash(f, dir){
   return true;
 }
 function tryRoll(f, dir){
+  if (f.state === 'windup' && canDodge(f)) spend(f, 4);
   if (!canDodge(f) || !spend(f, 14, true)) return false;
   f.dir = dir; f.vel.x = f.vel.z = 0; f.blindUntil = 0;
   enter(f, 'roll', ROLL_DUR);
@@ -4370,6 +4384,7 @@ function tryRoll(f, dir){
    away (or no direction)— a back full: a backflip wound through a whole twist.
    A click in the air is kept and cut on landing. Everything here is the simulation; the look is in poseFighter. */
 function tryFlip(f, dir){
+  if (f.state === 'windup' && canDodge(f)) spend(f, 4);
   if (!canDodge(f) || T < (f.flipReady || 0) || !spend(f, 18, true)) return false;
   const o = f.opp, fw = dirTo(f, o), rt = { x:-fw.z, z:fw.x }, d = dist(f, o);
   const fwd = dir.x*fw.x + dir.z*fw.z, lat = dir.x*rt.x + dir.z*rt.z, legs = 1 - .12*f.inj.leg;
@@ -4531,7 +4546,7 @@ function hit(a, b, over){
   streaks(cp, INK, atk.heavy ? 40 : 22, atk.heavy ? 9 : 7, 1);
   if (!atk.ranged) slashFx(cp, a.isPlayer ? atk.angle : mirror(atk.angle), b.isPlayer || atk.heavy ? RED : (atk.riposte ? GOLD : INK), atk.heavy);
   dustFx(b.pos.x, b.pos.z, atk.heavy ? 5 : 3, .3);
-  hitstop = atk.ranged ? 55 : atk.heavy ? 160 : 95; shake(atk.ranged ? .08 : atk.heavy ? .4 : .2);
+  hitstop = atk.ranged ? 45 : atk.heavy ? 125 : 70; shake(atk.ranged ? .08 : atk.heavy ? .4 : .2);
   fovKick = Math.max(fovKick, atk.heavy ? 3 : 1.4);
   Sfx.hit(atk.heavy, panOf(b));
   if (S.blood){
@@ -4611,7 +4626,7 @@ function parrySuccess(d, a, diff, tolDeg, swept){
   const kb = dirTo(d, a), kbs = perfect ? 3.4 : 2.2;
   a.vel.x += kb.x*kbs; a.vel.z += kb.z*kbs; d.vel.x -= kb.x*1; d.vel.z -= kb.z*1;
   addPosture(a, perfect ? (atk.heavy ? 40 : 26) : 10);
-  hitstop = perfect ? 160 : 80 + Math.min(chain, 8)*6;
+  hitstop = perfect ? 125 : 60 + Math.min(chain, 8)*5;
   shake(perfect ? .26 : .12 + Math.min(chain, 8)*.012);
   fovKick = Math.min(fovKick, perfect ? -5 : -1.5 - Math.min(chain, 8)*.3);
   Sfx.clang(perfect ? 1.35 : 1, panOf(d), chain);
@@ -6217,6 +6232,14 @@ function stepFighter(f, dt){
 
   switch (f.state){
     case 'windup':
+      // the last part of the windup steps in toward the opponent, so a blow thrown a little out of reach still arrives
+      if (!f.air && f.atk && !f.atk.chain && !f.atk.art && f.t > f.dur*.55){
+        const o = f.opp, d = dist(f, o), gap = d - (f.w.reach + (f.atk.reach || 0) - .25), cap = (f.atk.heavy ? 1.05 : f.atk.fromDodge ? .95 : .75) - (f.atk.closed || 0);
+        if (gap > 0 && cap > 0 && d > 1.1 && d < f.w.reach + 2.4 && o.state !== 'dead'){
+          const left = Math.max(30, f.dur - f.t + f.w.active*.5), st = Math.min(gap, cap)*Math.min(1, dt/left)*1.6, dir = dirTo(f, o);
+          f.pos.x += dir.x*st; f.pos.z += dir.z*st; f.atk.closed = (f.atk.closed || 0) + st;
+        }
+      }
       if (f.t >= f.dur){
         // still holding the button (or a bot choosing to wait): keep the blade up instead of striking
         const hold = (f.human && f.atk.live && f.ctl && f.ctl.lmb && G.phase === 'fight') || (!f.human && f.atk.holdFor > 0);
@@ -6226,10 +6249,11 @@ function stepFighter(f, dt){
       break;
     case 'hold': {
       const release = f.human ? (!(f.ctl && f.ctl.lmb) || G.phase !== 'fight') : f.t >= f.atk.holdFor;
-      if (!f.atk.heavy && f.t >= 350){ f.atk.heavy = true; spend(f, 5); glintFx(f, true, 700); Sfx.glint(true, panOf(f)); }
+      if (!f.atk.heavy && f.t >= 350){ f.atk.heavy = true; spend(f, 5); glintFx(f, true, 700); Sfx.glint(true, panOf(f));
+        if (f.atk.noArt){ f.atk.combo = f.w.comboMax || 3; if (fight() && f.isPlayer) setTiming('<b class="mid">CHARGED LINK</b>the chain ends in a heavy blow'); } }
       // hold on past the heavy point and the ring closes: the weapon's art is ready
-      if (f.atk.heavy && !f.atk.artReady && f.t >= SP_CHARGE && ARTS[f.wkey] && f.breath >= SP_COST){ f.atk.artReady = true; artReadyFx(f); }
-      else if (f.atk.heavy && !f.atk.artReady && !f.atk.artNoBreath && f.t >= SP_CHARGE && ARTS[f.wkey]){ f.atk.artNoBreath = true; if (fight() && f.isPlayer) callout('Not enough breath', 'bad', 'a normal heavy blow will come out'); }
+      if (f.atk.heavy && !f.atk.artReady && !f.atk.noArt && f.t >= SP_CHARGE && ARTS[f.wkey] && f.breath >= SP_COST){ f.atk.artReady = true; artReadyFx(f); }
+      else if (f.atk.heavy && !f.atk.artReady && !f.atk.noArt && !f.atk.artNoBreath && f.t >= SP_CHARGE && ARTS[f.wkey]){ f.atk.artNoBreath = true; if (fight() && f.isPlayer) callout('Not enough breath', 'bad', 'a normal heavy blow will come out'); }
       if (release && !f.atk.artReady && fight() && f.isPlayer && ARTS[f.wkey] && f.t < SP_CHARGE && f.t >= 120) setTiming(`<b class="mid">${f.atk.heavy ? 'HEAVY' : 'HELD'}</b>hold until the ring turns gold for your art`);
       if (release || f.t >= f.dur){ if (!(f.atk.artReady && startArt(f))){ chainArm(f); enter(f, 'active', f.w.active*(f.atk.chain ? 1.6 : 1)); Sfx.swing(f.atk.heavy, panOf(f)); Sfx.atkVoice(f, f.atk.heavy); } }
       break;
@@ -7204,6 +7228,15 @@ function poseFighter(f, dt, now){
     if (f.state === 'hitstun' && (f.hitKind === 'heavy' || f.hitKind === 'pull')) legSplit = Math.max(legSplit, .55*(1 - smooth(u)));
     // up on the ball of the foot through the turn, legs gathered under the hips instead of split
     if (f.state === 'spin') legTuck = Math.max(legTuck, .13*Math.sin(Math.PI*u));
+  }
+  {
+    const bid = f.state === 'dive' ? 1 : (f.state === 'flip' && f.flip) ? 2 : f.state === 'roll' ? 3 : 0;
+    if (!v.bxQ){ v.bxQ = new THREE.Quaternion(); v.bxPrev = new THREE.Quaternion().copy(v.body.quaternion); v.bxY = v.body.position.y; v.bxPrevY = v.bxY; v.bxBid = bid; v.bxT = -1e9; }
+    if (bid !== v.bxBid && f.state !== 'dead' && f.state !== 'hitstun'){ v.bxBid = bid; v.bxQ.copy(v.bxPrev); v.bxY = v.bxPrevY; v.bxT = now; }
+    v.bxBid = bid;
+    const bw = clamp((now - v.bxT)/120, 0, 1);
+    if (bw < 1){ const q = smooth(bw); _q2.copy(v.bxQ).slerp(v.body.quaternion, q); v.body.quaternion.copy(_q2); v.body.position.y = lerp(v.bxY, v.body.position.y, q); }
+    v.bxPrev.copy(v.body.quaternion); v.bxPrevY = v.body.position.y;
   }
   if (f.air){ const ua = clamp((T - f.air.start)/(f.air.end - f.air.start), 0, 1); legTuck = Math.max(legTuck, .7*Math.sin(Math.PI*ua)); }
   const spd = f.air ? 0 : Math.hypot(f.vel.x, f.vel.z);
